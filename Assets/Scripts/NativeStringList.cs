@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -6,13 +7,27 @@ using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
-namespace NativeStringCollection
+namespace NativeStringCollections
 {
-    public enum Accessibility : int
+    using NativeStringCollections.Impl;
+
+
+    unsafe public interface IStringEntityBase
     {
-        ReadWrite,
-        ReadOnly,
+        int Start { get; }
+        int Length { get; }
+        int End { get; }
+        char this[int index] { get; }
+        bool EqualsStringEntity(char* ptr, int Start, int Length);
+        bool Equals(IStringEntityBase entityBase);
     }
+
+    public interface IParseExt
+    {
+        int Length { get; }
+        char this[int i] { get; }
+    }
+
 
     public class NativeStringList : IDisposable, IEnumerable<StringEntity>
     {
@@ -28,6 +43,8 @@ namespace NativeStringCollection
                 this.elemIndexList.Dispose();
             }
         }
+
+        public bool IsCreated { get { return this.allocated; } }
 
         public NativeStringList(int char_array_size, int elem_size)
         {
@@ -72,7 +89,7 @@ namespace NativeStringCollection
             get
             {
                 var elem_index = this.elemIndexList[index];
-                return new StringEntity((char*)this.char_arr.GetUnsafeReadOnlyPtr(), elem_index.Start, elem_index.Length, Accessibility.ReadWrite);
+                return new StringEntity((char*)this.char_arr.GetUnsafeReadOnlyPtr(), elem_index.Start, elem_index.Length);
             }
         }
         public StringEntity At(int index)
@@ -101,8 +118,16 @@ namespace NativeStringCollection
             }
             this.elemIndexList.Add(new ElemIndex(Start, str.Length));
         }
-
-        public void Add(StringEntity entity)
+        unsafe public void Add(char* ptr, int Length)
+        {
+            int Start = this.char_arr.Length;
+            for (int i = 0; i < Length; i++)
+            {
+                this.char_arr.Add(ptr[i]);
+            }
+            this.elemIndexList.Add(new ElemIndex(Start, Length));
+        }
+        public void Add(IStringEntityBase entity)
         {
             int Start = this.char_arr.Length;
             for (int i = 0; i < entity.Length; i++)
@@ -112,7 +137,7 @@ namespace NativeStringCollection
             this.elemIndexList.Add(new ElemIndex(Start, entity.Length));
         }
 
-        public int IndexOf(StringEntity key)
+        public int IndexOf(IStringEntityBase key)
         {
             int left = 0;
             int right = this.elemIndexList.Length - 1;
@@ -184,6 +209,11 @@ namespace NativeStringCollection
 
             this.char_arr.ResizeUninitialized( this.char_arr.Length - total_gap );
         }
+        public void ShrinkToFit()
+        {
+            this.char_arr.Capacity = this.char_arr.Length;
+            this.elemIndexList.Capacity = this.elemIndexList.Length;
+        }
 
         private void CheckElemIndex(int index)
         {
@@ -194,46 +224,25 @@ namespace NativeStringCollection
         }
     }
 
-    public struct ElemIndex
+    public unsafe struct StringEntity :
+        IParseExt,
+        IStringEntityBase,
+        IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
+        IEnumerable<char>
     {
-        public int Start { get; private set; }
-        public int Length { get; private set; }
-
-        public int End { get { return this.Start + this.Length + 1; } }
-
-        public ElemIndex(int st, int len)
-        {
-            this.Start = st;
-            this.Length = len;
-        }
-    }
-
-    public unsafe struct StringEntity : IEquatable<StringEntity>, IEquatable<string>, IEquatable<char[]>, IEquatable<char>, IEnumerable<char>
-    {
-        public Accessibility mode { get; private set; }
         private char* root_ptr;
 
         public int Start { get; private set; }
         public int Length { get; private set; }
 
-        public int End { get { return this.Start + this.Length + 1; } }
+        public int End { get { return this.Start + this.Length; } }
 
         public StringEntity(char* ptr, int start, int Length)
         {
-            this.mode = Accessibility.ReadOnly;
             this.root_ptr = ptr;
             this.Start = start;
             this.Length = Length;
         }
-        public StringEntity(char* ptr, int start, int Length, Accessibility mode)
-        {
-            this.mode = mode;
-            this.root_ptr = ptr;
-            this.Start = start;
-            this.Length = Length;
-        }
-
-        public void SetReadOnly() { this.mode = Accessibility.ReadOnly; }
 
         public char this[int index]
         {
@@ -243,7 +252,6 @@ namespace NativeStringCollection
             }
             set
             {
-                this.CheckWritable();
                 this.CheckCharIndex(index);
                 *(this.root_ptr + this.Start + index) = value;
             }
@@ -261,50 +269,156 @@ namespace NativeStringCollection
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public bool Equals(StringEntity entity)
+        public ReadOnlyStringEntity GetReadOnlyEntity() { return new ReadOnlyStringEntity(this.root_ptr, this.Start, this.Length); }
+
+        public bool EqualsStringEntity(char* ptr, int Start, int Length)
         {
-            return (this.root_ptr == entity.root_ptr && this.Start == entity.Start && this.Length == entity.Length);
+            if (this.Length != Length) return false;
+            if(this.root_ptr == ptr && this.Start == Start) return true;
+            for(int i=0; i<Length; i++)
+            {
+                if (this[i] != ptr[i]) return false;
+            }
+            return true;
         }
+        public bool Equals(IStringEntityBase entity) { return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length); }
         public bool Equals(string str)
         {
             if (this.Length != str.Length) return false;
-
-            for (int i = 0; i < str.Length; i++)
-            {
-                if (this[i] != str[i]) return false;
-            }
-
-            return true;
+            return this.SequenceEqual<char>(str);
         }
         public bool Equals(char[] c_arr)
         {
             if (this.Length != c_arr.Length) return false;
-
-            for (int i = 0; i < c_arr.Length; i++)
+            return this.SequenceEqual<char>(c_arr);
+        }
+        public bool Equals(char c) { return (this.Length == 1 && this[0] == c); }
+        public bool Equals(IEnumerable<char> str_itr) { return this.SequenceEqual<char>(str_itr); }
+        public static bool operator ==(StringEntity lhs, IEnumerable<char> rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(StringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
+        public override bool Equals(object obj)
+        {
+            return obj is IStringEntityBase && ((IStringEntityBase)obj).EqualsStringEntity(this.root_ptr, this.Start, this.Length);
+        }
+        public override int GetHashCode()
+        {
+            int hash = this.Length.GetHashCode();
+            for(int i=0; i<this.Length; i++)
             {
-                if (this[i] != c_arr[i]) return false;
+                hash = hash ^ this[i].GetHashCode();
             }
+            return hash;
+        }
 
+        public override string ToString() { return new string(this.root_ptr, this.Start, this.Length); }
+        public char[] ToCharArray()
+        {
+            char[] ret = new char[this.Length];
+            for(int i=0; i<this.Length; i++)
+            {
+                ret[i] = this[i];
+            }
+            return ret;
+        }
+
+        private void CheckCharIndex(int index)
+        {
+            if (index < 0 || this.Length <= index)
+            {
+                throw new IndexOutOfRangeException("index = " + index.ToString() + ", must be in range of [0~" + (this.Length - 1).ToString() + "].");
+            }
+        }
+    }
+    public unsafe struct ReadOnlyStringEntity :
+       IParseExt,
+       IStringEntityBase,
+       IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
+       IEnumerable<char>
+    {
+        private char* root_ptr;
+
+        public int Start { get; private set; }
+        public int Length { get; private set; }
+
+        public int End { get { return this.Start + this.Length; } }
+
+        public ReadOnlyStringEntity(char* ptr, int start, int Length)
+        {
+            this.root_ptr = ptr;
+            this.Start = start;
+            this.Length = Length;
+        }
+
+        public char this[int index]
+        {
+            get
+            {
+                return *(this.root_ptr + this.Start + index);
+            }
+        }
+        public char At(int index)
+        {
+            this.CheckCharIndex(index);
+            return this[index];
+        }
+
+        public IEnumerator<char> GetEnumerator()
+        {
+            for (int i = 0; i < this.Length; i++)
+                yield return this[i];
+        }
+        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
+
+        public bool EqualsStringEntity(char* ptr, int Start, int Length)
+        {
+            if (this.Length != Length) return false;
+            if (this.root_ptr == ptr && this.Start == Start) return true;
+            for (int i = 0; i < Length; i++)
+            {
+                if (this[i] != ptr[i]) return false;
+            }
             return true;
         }
-        public bool Equals(char c)
+        public bool Equals(IStringEntityBase entity) { return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length); }
+        public bool Equals(string str)
         {
-            if (this.Length == 1 && this[0] == c) return true;
-            return false;
+            if (this.Length != str.Length) return false;
+            return this.SequenceEqual<char>(str);
         }
-
-        public override string ToString()
+        public bool Equals(char[] c_arr)
         {
-            return new string(this.root_ptr, this.Start, this.Length);
+            if (this.Length != c_arr.Length) return false;
+            return this.SequenceEqual<char>(c_arr);
         }
-
-        private void CheckWritable()
+        public bool Equals(char c) { return (this.Length == 1 && this[0] == c); }
+        public bool Equals(IEnumerable<char> str_itr) { return this.SequenceEqual<char>(str_itr); }
+        public static bool operator ==(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
+        public override bool Equals(object obj)
         {
-            if (this.mode != Accessibility.ReadWrite)
+            return obj is IStringEntityBase && ((IStringEntityBase)obj).EqualsStringEntity(this.root_ptr, this.Start, this.Length);
+        }
+        public override int GetHashCode()
+        {
+            int hash = this.Length.GetHashCode();
+            for (int i = 0; i < this.Length; i++)
             {
-                throw new InvalidOperationException("this entity is set as ReadOnly mode.");
+                hash = hash ^ this[i].GetHashCode();
             }
+            return hash;
         }
+
+        public override string ToString() { return new string(this.root_ptr, this.Start, this.Length); }
+        public char[] ToCharArray()
+        {
+            char[] ret = new char[this.Length];
+            for (int i = 0; i < this.Length; i++)
+            {
+                ret[i] = this[i];
+            }
+            return ret;
+        }
+
         private void CheckCharIndex(int index)
         {
             if (index < 0 || this.Length <= index)
@@ -316,7 +430,8 @@ namespace NativeStringCollection
 
     public static class StringEntityExtentions
     {
-        public static bool TryParse(this StringEntity value, out bool result)
+
+        public static bool TryParse(this IParseExt value, out bool result)
         {
             if (value.Length == 5)
             {
@@ -360,7 +475,7 @@ namespace NativeStringCollection
             return false;
         }
 
-        public static bool TryParse(this StringEntity value, out int result)
+        public static bool TryParse(this IParseExt value, out int result)
         {
             const int max_len = 10;
             const int max_val = 214748364;  // check at (max_len - 1) digit
@@ -373,23 +488,24 @@ namespace NativeStringCollection
 
             if (value.Length - i_start > max_len) return false;
 
-            long tmp = 0;
+            int tmp = 0;
             for (int i = i_start; i < value.Length; i++)
             {
                 if (value[i].IsDigit(out int d))
                 {
                     tmp = tmp * 10 + d;
-                    if (i == (max_len - 1 - i_start) && tmp > max_val) return false;
+                    if (i == (max_len - i_start - 1) && tmp > max_val) return false;
+                    if (i == (max_len - i_start) && ((sign == -1 && d == 8) || (sign == 1 && d == 7))) return false;
                 }
                 else
                 {
                     return false;
                 }
             }
-            result = sign * result;
+            result = sign * tmp;
             return true;
         }
-        public static bool TryParse(this StringEntity value, out long result)
+        public static bool TryParse(this IParseExt value, out long result)
         {
             const int max_len = 19;
             const long max_val = 922337203685477580;  // check at (max_len - 1) digit
@@ -409,17 +525,18 @@ namespace NativeStringCollection
                 {
                     tmp = tmp * 10 + d;
                     if (i == (max_len - 1 - i_start) && tmp > max_val) return false;
+                    if (i == (max_len - i_start) && ((sign == -1 && d == 8) || (sign == 1 && d == 7))) return false;
                 }
                 else
                 {
                     return false;
                 }
             }
-            result = sign * result;
+            result = sign * tmp;
             return true;
         }
 
-        public static bool TryParse(this StringEntity value, out float result)
+        public static bool TryParse(this IParseExt value, out float result)
         {
             result = 0.0f;
             if (value.Length <= 0) return false;
@@ -447,7 +564,7 @@ namespace NativeStringCollection
             result = mantissa * math.pow(10.0f, n_pow);
             return true;
         }
-        public static bool TryParse(this StringEntity value, out double result)
+        public static bool TryParse(this IParseExt value, out double result)
         {
             result = 0.0f;
             if (value.Length <= 0) return false;
@@ -476,7 +593,7 @@ namespace NativeStringCollection
             return true;
         }
 
-        private static bool TryParseFloatFormat(this StringEntity value, out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)
+        private static bool TryParseFloatFormat(this IParseExt value, out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)
         {
             i_start = 0;
             if (value[0].IsSign(out sign)) i_start = 1;
@@ -533,7 +650,7 @@ namespace NativeStringCollection
         }
 
 
-        unsafe public static bool TryParseHex(this StringEntity value, out int result)
+        unsafe public static bool TryParseHex(this IParseExt value, out int result)
         {
             if (value.TryParseHex32(out uint buf))
             {
@@ -546,7 +663,7 @@ namespace NativeStringCollection
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this StringEntity value, out long result)
+        unsafe public static bool TryParseHex(this IParseExt value, out long result)
         {
             if (value.TryParseHex64(out ulong buf))
             {
@@ -559,7 +676,7 @@ namespace NativeStringCollection
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this StringEntity value, out float result)
+        unsafe public static bool TryParseHex(this IParseExt value, out float result)
         {
             if (value.TryParseHex32(out uint buf))
             {
@@ -568,11 +685,11 @@ namespace NativeStringCollection
             }
             else
             {
-                result = 0;
+                result = 0.0f;
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this StringEntity value, out double result)
+        unsafe public static bool TryParseHex(this IParseExt value, out double result)
         {
             if (value.TryParseHex64(out ulong buf))
             {
@@ -581,12 +698,12 @@ namespace NativeStringCollection
             }
             else
             {
-                result = 0;
+                result = 0.0;
                 return false;
             }
         }
 
-        private static bool TryParseHex32(this StringEntity value, out uint buf)
+        private static bool TryParseHex32(this IParseExt value, out uint buf)
         {
             const int max_digits = 8;  // accepts max 8 digits
 
@@ -602,7 +719,7 @@ namespace NativeStringCollection
             buf = 0;
             for (int i = i_start; i < value.Length; i++)
             {
-                if (value[i].isHex(out uint h))
+                if (value[i].IsHex(out uint h))
                 {
                     buf = (buf << 4) | h;
                 }
@@ -614,7 +731,7 @@ namespace NativeStringCollection
             }
             return true;
         }
-        private static bool TryParseHex64(this StringEntity value, out ulong buf)
+        private static bool TryParseHex64(this IParseExt value, out ulong buf)
         {
             const int max_digits = 16;  // accepts max 16 digits
 
@@ -630,7 +747,7 @@ namespace NativeStringCollection
             buf = 0;
             for (int i = i_start; i < value.Length; i++)
             {
-                if (value[i].isHex(out uint h))
+                if (value[i].IsHex(out uint h))
                 {
                     buf = (buf << 4) | h;
                 }
@@ -644,64 +761,83 @@ namespace NativeStringCollection
         }
     }
 
-    static class CharExt
+
+    namespace Impl
     {
-        public static bool IsSign(this char c, out int sign)
+
+        struct ElemIndex
         {
-            if (c == '-')
+            public int Start { get; private set; }
+            public int Length { get; private set; }
+
+            public int End { get { return this.Start + this.Length; } }
+
+            public ElemIndex(int st, int len)
             {
-                sign = -1;
-                return true;
+                this.Start = st;
+                this.Length = len;
             }
-            else if (c == '+')
-            {
-                sign = 1;
-                return true;
-            }
-            sign = 1;
-            return false;
         }
-        public static bool IsDigit(this char c, out int digit)
+
+        static class CharExt
         {
-            if ('0' <= c && c <= '9')
+            public static bool IsSign(this char c, out int sign)
             {
-                digit = c.ToInt();
-                return true;
-            }
-            digit = 0;
-            return false;
-        }
-        public static bool isHex(this char c, out uint hex)
-        {
-            if (c.IsDigit(out int d))
-            {
-                hex = (uint)d;
-                return true;
-            }
-            else
-            {
-                if ('A' <= c && c <= 'F')
+                if (c == '-')
                 {
-                    hex = (uint)(c - 'A' + 10);
+                    sign = -1;
                     return true;
                 }
+                else if (c == '+')
+                {
+                    sign = 1;
+                    return true;
+                }
+                sign = 1;
+                return false;
             }
-            hex = 0;
-            return false;
-        }
-        public static bool IsDot(this char c)
-        {
-            if (c == '.') return true;
-            return false;
-        }
-        public static bool IsExp(this char c)
-        {
-            if (c == 'e' || c == 'E') return true;
-            return false;
-        }
-        public static int ToInt(this char c)
-        {
-            return c - '0';
+            public static bool IsDigit(this char c, out int digit)
+            {
+                if ('0' <= c && c <= '9')
+                {
+                    digit = c.ToInt();
+                    return true;
+                }
+                digit = 0;
+                return false;
+            }
+            public static bool IsHex(this char c, out uint hex)
+            {
+                if (c.IsDigit(out int d))
+                {
+                    hex = (uint)d;
+                    return true;
+                }
+                else
+                {
+                    if ('A' <= c && c <= 'F')
+                    {
+                        hex = (uint)(c - 'A' + 10);
+                        return true;
+                    }
+                }
+                hex = 0;
+                return false;
+            }
+            public static bool IsDot(this char c)
+            {
+                if (c == '.') return true;
+                return false;
+            }
+            public static bool IsExp(this char c)
+            {
+                if (c == 'e' || c == 'E') return true;
+                return false;
+            }
+            public static int ToInt(this char c)
+            {
+                return c - '0';
+            }
         }
     }
 }
