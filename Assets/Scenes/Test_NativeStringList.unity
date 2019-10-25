@@ -1072,8 +1072,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   seed: 5687
+  factor_delim: 150
   n_char: 400
-  n_RemoveAt: 0
+  n_RemoveAt: 4
   n_RemoveRange: 0
-  len_RemoveRange: 0
+  len_RemoveRange: 4
   n_numeric_string: 0

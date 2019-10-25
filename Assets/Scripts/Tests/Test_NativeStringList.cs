@@ -11,6 +11,8 @@ public class Test_NativeStringList : MonoBehaviour
 {
     [SerializeField]
     public int seed;
+    [SerializeField]
+    public int factor_delim;
 
     [SerializeField]
     public int n_char;
@@ -54,14 +56,18 @@ public class Test_NativeStringList : MonoBehaviour
 
     public void OnClickCollectionTest()
     {
-        this.GenerateRandomStrings();
+        //    this.GenerateRandomStrings();
+        this.GenerateNumberedStrings();
+
         this.Test_Collection("gen 1");
-    //    this.Test_RemoveAt("");
-    //    this.Test_Collection("after Test_RemoveAt()");
+        this.Test_RemoveAt("RemoveAt");
+        this.Test_Collection("after Test_RemoveAt()");
 
     //    this.GenerateRandomStrings();
+    //    this.GenerateNumberedStrings();
+
     //    this.Test_Collection("gen 2");
-    //    this.Test_RemoveRange("");
+    //    this.Test_RemoveRange("RemoveRange");
     //    this.Test_Collection("after Test_RemoveAt()");
     }
     public void OnClickParseStringTest()
@@ -168,38 +174,50 @@ public class Test_NativeStringList : MonoBehaviour
         if (tag.Length > 0) Debug.Log("  test tag = '" + tag + "' was begin.");
         if (str_native.Length != str_list.Count)
         {
-            Debug.LogError("collection size: str_native.Length = " + str_native.Length + ", str_list.Count = " + str_list.Count);
+            Debug.LogError("collection size: str_native.Length = " + str_native.Length.ToString() + ", str_list.Count = " + str_list.Count.ToString());
             return;
         }
-
-        string error_log_txt = "";
 
         bool test_pass = true;
         int i_range = str_native.Length;
         int n_remove = math.min(n_RemoveAt, i_range);
 
-        Debug.Log("str_native.Capacity = " + str_native.Capacity + ", str_native.Size = " + str_native.Size + " (before remove)");
+        Debug.Log("str_native.Capacity = " + str_native.Capacity.ToString() + ", str_native.Size = " + str_native.Size.ToString()
+                                           + ", str_native.Length = " + str_native.Length + " (before remove)");
         for (int i=0; i<n_remove; i++)
         {
             int index = random.Next(0, i_range);
 
-            StringEntity entity = str_native[index];
+            StringEntity entity = str_native.At(index);
             ReadOnlyStringEntity entity_ro = entity.GetReadOnlyEntity();
 
+            /*
             if(str_native.IndexOf(entity) != index)
             {
                 test_pass = false;
-                error_log_txt += "index = " + index + ", IndexOf(entity) was failed. Start = " + entity.Start + ", Length = " + entity.Length + ", str = " + entity;
+                Debug.LogError("index = " + index.ToString()
+                              + ", IndexOf(entity) was failed. Start = "
+                              + entity.Start.ToString() + ", Length = "
+                              + entity.Length.ToString() + ", str = "
+                              + entity.ToString());
             }
             if (str_native.IndexOf(entity_ro) != index)
             {
                 test_pass = false;
-                error_log_txt += "index = " + index + ", IndexOf(entity_ro) was failed. Start = " + entity_ro.Start + ", Length = " + entity_ro.Length + ", str = " + entity_ro;
+                Debug.LogError("index = " + index.ToString()
+                              + ", IndexOf(entity_ro) was failed. Start = "
+                              + entity_ro.Start.ToString() + ", Length = "
+                              + entity_ro.Length.ToString() + ", str = "
+                              + entity_ro.ToString() + "\n");
             }
+            */
+
+            Debug.Log("delete: index = " + index.ToString());
 
             str_native.RemoveAt(index);
             str_list.RemoveAt(index);
 
+            /*
             int ret1 = str_native.IndexOf(entity);
             int ret2 = str_native.IndexOf(entity_ro);
 
@@ -207,24 +225,31 @@ public class Test_NativeStringList : MonoBehaviour
             if (ret1 != -1)
             {
                 test_pass = false;
-                error_log_txt += "index = " + index + ", IndexOf(entity) was invalid (must be removed)." + ", ret = " + ret1
-                               + ", Start = " + entity.Start + ", Length = " + entity.Length + ", str = " + entity;
+                Debug.LogError("index = " + index.ToString() + ", IndexOf(entity) was invalid (must be removed)." + ", ret = " + ret1.ToString()
+                               + ", Start = " + entity.Start.ToString() + ", Length = " + entity.Length.ToString() + ", str = " + entity.ToString() + "\n"
+                               + ", str_native.At(index) = " + str_native.At(index).ToString() + "\n");
             }
             if (ret2 != -1)
             {
                 test_pass = false;
-                error_log_txt += "index = " + index + ", IndexOf(entity_ro) was invalid (must be removed)." + ", ret = " + ret2
-                               + ", Start = " + entity_ro.Start + ", Length = " + entity_ro.Length + ", str = " + entity_ro;
+                Debug.LogError("index = " + index.ToString() + ", IndexOf(entity_ro) was invalid (must be removed)." + ", ret = " + ret2.ToString()
+                               + ", Start = " + entity_ro.Start.ToString() + ", Length = " + entity_ro.Length.ToString() + ", str = " + entity_ro.ToString() + "\n"
+                               + ", str_native.At(index) = " + str_native.At(index).ToString() + "\n");
             }
+            */
 
             i_range--;
         }
 
-        Debug.Log("str_native.Capacity = " + str_native.Capacity + ", str_native.Size = " + str_native.Size + " (after remove)");
+
+        Debug.Log("str_native.Capacity = " + str_native.Capacity.ToString() + ", str_native.Size = " + str_native.Size.ToString()
+                                           + ", str_native.Length = " + str_native.Length.ToString() + " (after remove)");
         str_native.ReAdjustment();
-        Debug.Log("str_native.Capacity = " + str_native.Capacity + ", str_native.Size = " + str_native.Size + " (after call 'ReAdjustment()')");
+        Debug.Log("str_native.Capacity = " + str_native.Capacity.ToString() + ", str_native.Size = " + str_native.Size.ToString()
+                                           + ", str_native.Length = " + str_native.Length.ToString() + " (after call 'ReAdjustment()')");
         str_native.ShrinkToFit();
-        Debug.Log("str_native.Capacity = " + str_native.Capacity + ", str_native.Size = " + str_native.Size + " (after call 'ShrinkToFit()')");
+        Debug.Log("str_native.Capacity = " + str_native.Capacity.ToString() + ", str_native.Size = " + str_native.Size.ToString()
+                                           + ", str_native.Length = " + str_native.Length.ToString() + " (after call 'ShrinkToFit()')");
 
         if (test_pass)
         {
@@ -245,7 +270,7 @@ public class Test_NativeStringList : MonoBehaviour
         if (tag.Length > 0) Debug.Log("  test tag = '" + tag + "' was begin.");
         if (str_native.Length != str_list.Count)
         {
-            Debug.LogError("collection size: str_native.Length = " + str_native.Length + ", str_list.Count = " + str_list.Count);
+            Debug.LogError("collection size: str_native.Length = " + str_native.Length.ToString() + ", str_list.Count = " + str_list.Count.ToString());
             return;
         }
 
@@ -255,7 +280,7 @@ public class Test_NativeStringList : MonoBehaviour
         int i_range = str_native.Length;
         int n_remove = math.min(n_RemoveRange, i_range / len_RemoveRange);
 
-        Debug.Log("str_native.Capacity = " + str_native.Capacity + ", str_native.Size = " + str_native.Size + " (before remove)");
+        Debug.Log("str_native.Capacity = " + str_native.Capacity.ToString() + ", str_native.Size = " + str_native.Size.ToString() + " (before remove)");
         for (int i = 0; i < n_remove; i++)
         {
             int index = random.Next(0, i_range - len_RemoveRange);
@@ -283,24 +308,24 @@ public class Test_NativeStringList : MonoBehaviour
                 if (ret1 != -1)
                 {
                     test_pass = false;
-                    error_log_txt += "index = " + index + ", IndexOf(entity) was invalid (must be removed)." + ", ret = " + ret1
-                                   + ", Start = " + entity.Start + ", Length = " + entity.Length + ", str = " + entity;
+                    error_log_txt += "index = " + index.ToString() + ", IndexOf(entity) was invalid (must be removed). ret = " + ret1.ToString()
+                                   + ", Start = " + entity.Start.ToString() + ", Length = " + entity.Length.ToString() + ", str = " + entity.ToString() + "\n";
                 }
                 if (ret2 != -1)
                 {
                     test_pass = false;
-                    error_log_txt += "index = " + index + ", IndexOf(entity_ro) was invalid (must be removed)." + ", ret = " + ret2
-                                   + ", Start = " + entity_ro.Start + ", Length = " + entity_ro.Length + ", str = " + entity_ro;
+                    error_log_txt += "index = " + index.ToString() + ", IndexOf(entity_ro) was invalid (must be removed). ret = " + ret2.ToString()
+                                   + ", Start = " + entity_ro.Start.ToString() + ", Length = " + entity_ro.Length.ToString() + ", str = " + entity_ro.ToString() + "\n";
                 }
             }
             i_range--;
         }
 
-        Debug.Log("str_native.Capacity = " + str_native.Capacity + ", str_native.Size = " + str_native.Size + " (after remove)");
+        Debug.Log("str_native.Capacity = " + str_native.Capacity.ToString() + ", str_native.Size = " + str_native.Size.ToString() + " (after remove)");
         str_native.ReAdjustment();
-        Debug.Log("str_native.Capacity = " + str_native.Capacity + ", str_native.Size = " + str_native.Size + " (after call 'ReAdjustment()')");
+        Debug.Log("str_native.Capacity = " + str_native.Capacity.ToString() + ", str_native.Size = " + str_native.Size.ToString() + " (after call 'ReAdjustment()')");
         str_native.ShrinkToFit();
-        Debug.Log("str_native.Capacity = " + str_native.Capacity + ", str_native.Size = " + str_native.Size + " (after call 'ShrinkToFit()')");
+        Debug.Log("str_native.Capacity = " + str_native.Capacity.ToString() + ", str_native.Size = " + str_native.Size.ToString() + " (after call 'ShrinkToFit()')");
 
         if (test_pass)
         {
@@ -334,30 +359,69 @@ public class Test_NativeStringList : MonoBehaviour
 
     }
 
+    void GenerateNumberedStrings()
+    {
+        if (n_char <= 0) return;
+        Debug.Log(" == generate numbered string ==");
+
+        str_native.Clear();
+        str_list.Clear();
+
+        int char_count = 0;
+        int line_count = 0;
+
+        int n_lines = n_char / 10;
+        for (int i = 0; i < n_lines; i++)
+        {
+            int n_term = random.Next(3, 7);
+            string word = i.ToString() + '_';
+
+            string str = "";
+            for(int jj = 1; jj<n_term; jj++)
+            {
+                str += word;
+            }
+
+            str_native.Add(str);
+            str_list.Add(str);
+
+            char_count++;
+            line_count++;
+        }
+        Debug.Log(" generated: " + line_count.ToString() + " strings, " + char_count.ToString() + " charactors.");
+    }
     void GenerateRandomStrings()
     {
         if (n_char <= 0) return;
+        Debug.Log(" == generate random string ==");
+
         str_native.Clear();
         str_list.Clear();
+
+        int char_count = 0;
+        int line_count = 0;
 
         List<char> tmp = new List<char>();
         for(int i=0; i<n_char; i++)
         {
-            int code = random.Next(32, 130);  // ASCII char code: [32~126]
-            if (code == 127) code = 9;        // 127 ->  9 (\t)
-            if (code == 128) code = 10;       // 128 -> 10 (\n)
+            int code = random.Next(32, 130 + math.min(factor_delim, 0));  // ASCII char code: [32~126]
+            if (code == 127) code = 9;                                    // 127 ->  9 (\t)
+            if (code == 128) code = 10;                                   // 128 -> 10 (\n)
 
-            if (code >= 129 && tmp.Count > 0) // split strings
+            code = math.min(code, 130);
+            if (code >= 129 && tmp.Count > 0)                             // (code >= 129) are split strings
             {
                 var str = new string(tmp.ToArray());
                 tmp.Clear();
 
                 this.str_native.Add(str);
                 this.str_list.Add(str);
+                line_count++;
             }
             else
             {
                 tmp.Add( (char)code );
+                char_count++;
             }
         }
         if(tmp.Count > 0)
@@ -367,9 +431,13 @@ public class Test_NativeStringList : MonoBehaviour
 
             this.str_native.Add(str);
             this.str_list.Add(str);
+            line_count++;
         }
         this.str_native.Add("7");
         this.str_list.Add("7");
+        char_count++;
+        line_count++;
+        Debug.Log(" generated: " + line_count.ToString() + " strings, " + char_count.ToString() + " charactors.");
     }
     void GenerateRandomInt32_Strings()
     {

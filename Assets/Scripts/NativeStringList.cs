@@ -1,7 +1,11 @@
-﻿using System;
+﻿
+#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+
+using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 using Unity.Mathematics;
 using Unity.Collections;
@@ -33,24 +37,54 @@ namespace NativeStringCollections
     {
         private NativeList<char> char_arr;
         private NativeList<ElemIndex> elemIndexList;
-        private bool allocated;
+        private NativeArray<ulong> genTrace;
+        private bool allocated = false;
 
+        private void Init(int char_array_size, int elem_size, Allocator alloc)
+        {
+            this.char_arr = new NativeList<char>(char_array_size, alloc);
+            this.elemIndexList = new NativeList<ElemIndex>(elem_size, alloc);
+            this.genTrace = new NativeArray<ulong>(1, Allocator.Persistent);
+            this.allocated = true;
+        }
         public void Dispose()
         {
             if (this.allocated)
             {
                 this.char_arr.Dispose();
                 this.elemIndexList.Dispose();
+                this.genTrace.Dispose();
+
+                this.allocated = false;
             }
         }
 
         public bool IsCreated { get { return this.allocated; } }
 
+        /// <summary>
+        /// The constructor
+        /// </summary>
+        public NativeStringList(int char_array_size, int elem_size, Allocator alloc)
+        {
+            this.Init(char_array_size, elem_size, alloc);
+        }
+        /// <summary>
+        /// Construct with Allocator.Persistent
+        /// </summary>
         public NativeStringList(int char_array_size, int elem_size)
         {
-            this.char_arr = new NativeList<char>(char_array_size, Allocator.Persistent);
-            this.elemIndexList = new NativeList<ElemIndex>(elem_size, Allocator.Persistent);
-            this.allocated = true;
+            this.Init(char_array_size, elem_size, Allocator.Persistent);
+        }
+        /// <summary>
+        /// Construct with char_array_size = 128, elem_size = 16, Allocator.Persistent
+        /// </summary>
+        public NativeStringList()
+        {
+            this.Init(128, 16, Allocator.Persistent);
+        }
+        ~NativeStringList()
+        {
+            this.Dispose();
         }
 
         public void Clear()
@@ -69,7 +103,19 @@ namespace NativeStringCollections
             }
             set
             {
-                this.char_arr.Capacity = value;
+                if (value < this.char_arr.Length)
+                {
+                    throw new ArgumentOutOfRangeException("the new capacity is too small. capacity = " + value.ToString()
+                        + ", Length = " + this.char_arr.Length.ToString());
+                }
+                if (value == this.char_arr.Length) return;
+
+                var tmp = new NativeList<char>(value, Allocator.Persistent);
+                tmp.Clear();
+                tmp.AddRange(this.char_arr);
+
+                this.char_arr.Dispose();
+                this.char_arr = tmp;
             }
         }
         public int IndexCapacity
@@ -80,7 +126,19 @@ namespace NativeStringCollections
             }
             set
             {
-                this.elemIndexList.Capacity = value;
+                if (value < this.elemIndexList.Length)
+                {
+                    throw new ArgumentOutOfRangeException("the new capacity is too small. capacity = " + value.ToString()
+                        + ", Length = " + this.elemIndexList.Length.ToString());
+                }
+                if (value == this.elemIndexList.Length) return;
+
+                var tmp = new NativeList<ElemIndex>(value, Allocator.Persistent);
+                tmp.Clear();
+                tmp.AddRange(this.elemIndexList);
+
+                this.elemIndexList.Dispose();
+                this.elemIndexList = tmp;
             }
         }
 
@@ -89,7 +147,14 @@ namespace NativeStringCollections
             get
             {
                 var elem_index = this.elemIndexList[index];
-                return new StringEntity((char*)this.char_arr.GetUnsafeReadOnlyPtr(), elem_index.Start, elem_index.Length);
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            //    UnityEngine.Debug.Log("index: " + index.ToString()
+            //                      +  "ptr: " + ((int)this.char_arr.GetUnsafePtr()).ToString() + ", Start: " + elem_index.Start.ToString() + ", Length: " + elem_index.Length.ToString()
+            //                      + ", GenPtr: " + ((ulong)this.GetGenPtr()).ToString() + ", Gen: " + this.GetGen().ToString());
+                return new StringEntity((char*)this.char_arr.GetUnsafePtr(), this.GetGenPtr(), this.GetGen(), elem_index.Start, elem_index.Length);
+#else
+                return new StringEntity((char*)this.char_arr.GetUnsafePtr(), elem_index.Start, elem_index.Length);
+#endif
             }
         }
         public StringEntity At(int index)
@@ -111,43 +176,94 @@ namespace NativeStringCollections
 
         public void Add(string str)
         {
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            ulong prev_sig = this.GetGenSigneture();
+#endif
+
             int Start = this.char_arr.Length;
             for (int i = 0; i < str.Length; i++)
             {
                 this.char_arr.Add(str[i]);
             }
             this.elemIndexList.Add(new ElemIndex(Start, str.Length));
+
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            ulong next_sig = this.GetGenSigneture();
+            if (prev_sig != next_sig) this.NextGen();
+#endif
         }
         unsafe public void Add(char* ptr, int Length)
         {
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            ulong prev_sig = this.GetGenSigneture();
+#endif
+
             int Start = this.char_arr.Length;
             for (int i = 0; i < Length; i++)
             {
                 this.char_arr.Add(ptr[i]);
             }
             this.elemIndexList.Add(new ElemIndex(Start, Length));
+
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            ulong next_sig = this.GetGenSigneture();
+            if (prev_sig != next_sig) this.NextGen();
+#endif
         }
         public void Add(IStringEntityBase entity)
         {
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            ulong prev_sig = this.GetGenSigneture();
+#endif
+
             int Start = this.char_arr.Length;
             for (int i = 0; i < entity.Length; i++)
             {
                 this.char_arr.Add(entity[i]);
             }
             this.elemIndexList.Add(new ElemIndex(Start, entity.Length));
+
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            ulong next_sig = this.GetGenSigneture();
+            if (prev_sig != next_sig) this.NextGen();
+#endif
         }
 
-        public int IndexOf(IStringEntityBase key)
+        /// <summary>
+        /// Get the index of the entity. This means "is the entity points effective area.", cannot guarantee the consistency of pointing content.
+        /// Use 'IndexOf(string key)' API for check contents.
+        /// </summary>
+        /// <param name="key">entity</param>
+        /// <returns>index or -1 (not found)</returns>
+        unsafe public int IndexOf(IStringEntityBase key)
         {
+            if (this.elemIndexList.Length < 1) return -1;
+            if (!key.EqualsStringEntity((char*)this.char_arr.GetUnsafePtr(), key.Start, key.Length)) return -1;
+
             int left = 0;
             int right = this.elemIndexList.Length - 1;
             while (right >= left)
             {
                 int mid = left + (right - left) / 2;
-                var entity = this.elemIndexList[mid];
+                IStringEntityBase entity = this[mid];
+
                 if (key.Equals(entity)) return mid;
                 else if (entity.Start > key.Start) right = mid - 1;
                 else if (entity.Start < key.Start) left = mid + 1;
+                else return -1;
+            }
+            return -1;
+        }
+        /// <summary>
+        /// Get the index of the entity. This method performs full search.
+        /// </summary>
+        public int IndexOf(string key)
+        {
+            if (this.elemIndexList.Length < 1) return -1;
+            for(int i=0; i<this.elemIndexList.Length; i++)
+            {
+                var entity = this[i];
+                if (entity.Equals(key)) return i;
             }
             return -1;
         }
@@ -159,7 +275,7 @@ namespace NativeStringCollections
             {
                 this.elemIndexList[i] = this.elemIndexList[i + 1];
             }
-            this.elemIndexList.RemoveAtSwapBack(this.Length - 1);
+            this.elemIndexList.ResizeUninitialized(this.Length - 1);
         }
         public void RemoveRange(int index, int count)
         {
@@ -176,43 +292,76 @@ namespace NativeStringCollections
             {
                 this.elemIndexList[i] = this.elemIndexList[i + count];
             }
-            for(int i=0; i<count; i++)
-            {
-                this.elemIndexList.RemoveAtSwapBack(this.Length - 1);
-            }
+            this.elemIndexList.ResizeUninitialized(this.Length - count);
         }
 
+        /// <summary>
+        /// Re adjust the internal char buffer to justifing data after calling RemoveAt() or RemoveRange().
+        /// All StringEntities are disabled after calling this function.
+        /// </summary>
         public void ReAdjustment()
         {
-            if (this.Length <= 1) return;
+            //return;
 
-            int total_gap = 0;
+            if (this.Length <= 0) return;
 
+            int gap = 0;
+            int index_start = 1;
             ElemIndex prev_index = this.elemIndexList[0];
-            for(int i_index=1; i_index<this.Length; i_index++)
+
+            //UnityEngine.Debug.Log("elemIndexList[0]: Start = " + prev_index.Start
+            //            + ", Length = " + prev_index.Length.ToString() + ", End =" + prev_index.End.ToString() );
+
+            // this[0] is not on the head
+            if (prev_index.Start > 0)
+            {
+                index_start = 0;
+                prev_index = new ElemIndex(0, 0);
+            }
+
+            for(int i_index=index_start; i_index<this.elemIndexList.Length; i_index++)
             {
                 ElemIndex now_index = this.elemIndexList[i_index];
-                int gap = now_index.Start - prev_index.End;
-                if(gap > 0)
+                gap = now_index.Start - prev_index.End;
+                
+            //    UnityEngine.Debug.Log("now_index: Start = " + now_index.Start
+            //             + ", Length = " + now_index.Length.ToString() + ", End =" + now_index.End.ToString() + ", gap = " + gap.ToString());
+
+                if (gap > 0)
                 {
+            //        UnityEngine.Debug.Log("index = " + i_index
+            //           + ", shift data: [" + now_index.Start.ToString() + "-" + (now_index.End-1).ToString()
+            //            + "] -> [" + prev_index.End.ToString() + "-" + (prev_index.End+now_index.Length-1).ToString() + "]");
+
                     int i_start = prev_index.End;
                     for (int i_data=0; i_data<now_index.Length; i_data++)
                     {
-                        this.char_arr[i_start + i_data] = this.char_arr[i_start + i_data + gap];
+                        this.char_arr[i_start + i_data] = this.char_arr[now_index.Start + i_data];
                     }
-
-                    prev_index = new ElemIndex(now_index.Start - gap, now_index.Length);
-                    this.elemIndexList[i_index] = prev_index;
-                    total_gap += gap;
                 }
+
+                prev_index = new ElemIndex(prev_index.End, now_index.Length);
+                this.elemIndexList[i_index] = prev_index;
             }
 
-            this.char_arr.ResizeUninitialized( this.char_arr.Length - total_gap );
+            this.char_arr.ResizeUninitialized( this.char_arr.Length - gap );
+            if (gap > 0) this.NextGen();
         }
+        /// <summary>
+        /// Shrink internal buffer size to fit present data length.
+        /// Calling ReAdjuxtment() previously is recommended to eliminate the gap data.
+        /// </summary>
         public void ShrinkToFit()
         {
+            return;
+
+            ulong prev_sig = this.GetGenSigneture();
+
             this.char_arr.Capacity = this.char_arr.Length;
             this.elemIndexList.Capacity = this.elemIndexList.Length;
+
+            ulong next_sig = this.GetGenSigneture();
+            if (prev_sig != next_sig) this.NextGen();
         }
 
         private void CheckElemIndex(int index)
@@ -222,78 +371,127 @@ namespace NativeStringCollections
                 throw new IndexOutOfRangeException("index = " + index.ToString() + ", must be in range of [0~" + (this.Length - 1).ToString() + "].");
             }
         }
+        private void NextGen()
+        {
+            ulong now_gen = this.genTrace[0];
+            this.genTrace[0] = now_gen + 1;
+        }
+        private ulong GetGen() { return this.genTrace[0]; }
+        unsafe private ulong* GetGenPtr() { return (ulong*)this.genTrace.GetUnsafeReadOnlyPtr(); }
+        unsafe private ulong GetGenSigneture() { return (ulong)this.char_arr.GetUnsafePtr(); }
     }
 
-    public unsafe struct StringEntity :
+    [StructLayout(LayoutKind.Auto)]
+    public readonly unsafe struct StringEntity :
         IParseExt,
         IStringEntityBase,
         IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
         IEnumerable<char>
     {
-        private char* root_ptr;
+        private readonly char* root_ptr;
+        private readonly int start;
+        private readonly int len;
 
-        public int Start { get; private set; }
-        public int Length { get; private set; }
-
+        public int Start {  get { return this.start; } }
+        public int Length { get { return this.len; } }
         public int End { get { return this.Start + this.Length; } }
 
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+        private readonly ulong* gen_ptr;
+        private readonly ulong gen_entity;
+#endif
+
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+        public StringEntity(char* ptr, ulong* gen_ptr, ulong gen_entity, int start, int Length)
+        {
+            this.root_ptr = ptr;
+            this.start = start;
+            this.len = Length;
+
+            this.gen_ptr = gen_ptr;
+            this.gen_entity = gen_entity;
+        }
+#else
         public StringEntity(char* ptr, int start, int Length)
         {
             this.root_ptr = ptr;
             this.Start = start;
             this.Length = Length;
         }
+#endif
 
         public char this[int index]
         {
             get
             {
+                this.CheckReallocate();
                 return *(this.root_ptr + this.Start + index);
             }
             set
             {
+                this.CheckReallocate();
                 this.CheckCharIndex(index);
                 *(this.root_ptr + this.Start + index) = value;
             }
         }
         public char At(int index)
         {
+            this.CheckReallocate();
             this.CheckCharIndex(index);
             return this[index];
         }
 
         public IEnumerator<char> GetEnumerator()
         {
+            this.CheckReallocate();
             for (int i = 0; i < this.Length; i++)
                 yield return this[i];
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public ReadOnlyStringEntity GetReadOnlyEntity() { return new ReadOnlyStringEntity(this.root_ptr, this.Start, this.Length); }
+        public ReadOnlyStringEntity GetReadOnlyEntity() {
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            this.CheckReallocate();
+            return new ReadOnlyStringEntity(this.root_ptr, this.gen_ptr, this.gen_entity, this.Start, this.Length);
+#else
+            return new ReadOnlyStringEntity(this.root_ptr, this.Start, this.Length);
+#endif
+        }
 
         public bool EqualsStringEntity(char* ptr, int Start, int Length)
         {
+            this.CheckReallocate();
             if (this.Length != Length) return false;
             if(this.root_ptr == ptr && this.Start == Start) return true;
-            for(int i=0; i<Length; i++)
-            {
-                if (this[i] != ptr[i]) return false;
-            }
             return true;
         }
-        public bool Equals(IStringEntityBase entity) { return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length); }
+        public bool Equals(IStringEntityBase entity)
+        {
+            this.CheckReallocate();
+            return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length);
+        }
         public bool Equals(string str)
         {
+            this.CheckReallocate();
             if (this.Length != str.Length) return false;
             return this.SequenceEqual<char>(str);
         }
         public bool Equals(char[] c_arr)
         {
+            this.CheckReallocate();
             if (this.Length != c_arr.Length) return false;
             return this.SequenceEqual<char>(c_arr);
         }
-        public bool Equals(char c) { return (this.Length == 1 && this[0] == c); }
-        public bool Equals(IEnumerable<char> str_itr) { return this.SequenceEqual<char>(str_itr); }
+        public bool Equals(char c)
+        {
+            this.CheckReallocate();
+            return (this.Length == 1 && this[0] == c);
+        }
+        public bool Equals(IEnumerable<char> str_itr)
+        {
+            this.CheckReallocate();
+            return this.SequenceEqual<char>(str_itr);
+        }
         public static bool operator ==(StringEntity lhs, IEnumerable<char> rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(StringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
         public override bool Equals(object obj)
@@ -302,6 +500,7 @@ namespace NativeStringCollections
         }
         public override int GetHashCode()
         {
+            this.CheckReallocate();
             int hash = this.Length.GetHashCode();
             for(int i=0; i<this.Length; i++)
             {
@@ -310,9 +509,15 @@ namespace NativeStringCollections
             return hash;
         }
 
-        public override string ToString() { return new string(this.root_ptr, this.Start, this.Length); }
+        public override string ToString()
+        {
+            this.CheckReallocate();
+        //    UnityEngine.Debug.Log("ptr: " + ((int)this.root_ptr).ToString() + ", Start: " + this.Start.ToString() + ", Length: " + this.Length.ToString());
+            return new string(this.root_ptr, this.Start, this.Length);
+        }
         public char[] ToCharArray()
         {
+            this.CheckReallocate();
             char[] ret = new char[this.Length];
             for(int i=0; i<this.Length; i++)
             {
@@ -323,12 +528,182 @@ namespace NativeStringCollections
 
         private void CheckCharIndex(int index)
         {
+#if UNITY_ASSERTIONS
             if (index < 0 || this.Length <= index)
             {
-                throw new IndexOutOfRangeException("index = " + index.ToString() + ", must be in range of [0~" + (this.Length - 1).ToString() + "].");
+                // simple exception patterns only can be used in BurstCompiler.
+                throw new IndexOutOfRangeException("index is out of range.");
             }
+#endif
+        }
+        private void CheckReallocate()
+        {
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            if( *(this.gen_ptr) != this.gen_entity)
+            {
+                throw new InvalidOperationException("this entity is invalid reference.");
+            }
+#endif
         }
     }
+    [StructLayout(LayoutKind.Auto)]
+    public readonly unsafe struct ReadOnlyStringEntity :
+        IParseExt,
+        IStringEntityBase,
+        IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
+        IEnumerable<char>
+    {
+        private readonly char* root_ptr;
+        private readonly int start;
+        private readonly int len;
+
+        public int Start { get { return this.start; } }
+        public int Length { get { return this.len; } }
+        public int End { get { return this.Start + this.Length; } }
+
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+        private readonly ulong* gen_ptr;
+        private readonly ulong gen_entity;
+#endif
+
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+        public ReadOnlyStringEntity(char* ptr, ulong* gen_ptr, ulong gen_entity, int start, int Length)
+        {
+            this.root_ptr = ptr;
+            this.start = start;
+            this.len = Length;
+
+            this.gen_ptr = gen_ptr;
+            this.gen_entity = gen_entity;
+        }
+#else
+        public ReadOnlyStringEntity(char* ptr, int start, int Length)
+        {
+            this.root_ptr = ptr;
+            this.Start = start;
+            this.Length = Length;
+        }
+#endif
+
+        public char this[int index]
+        {
+            get
+            {
+                this.CheckReallocate();
+                return *(this.root_ptr + this.Start + index);
+            }
+            set
+            {
+                this.CheckReallocate();
+                this.CheckCharIndex(index);
+                *(this.root_ptr + this.Start + index) = value;
+            }
+        }
+        public char At(int index)
+        {
+            this.CheckReallocate();
+            this.CheckCharIndex(index);
+            return this[index];
+        }
+
+        public IEnumerator<char> GetEnumerator()
+        {
+            this.CheckReallocate();
+            for (int i = 0; i < this.Length; i++)
+                yield return this[i];
+        }
+        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
+
+        public bool EqualsStringEntity(char* ptr, int Start, int Length)
+        {
+            this.CheckReallocate();
+            if (this.Length != Length) return false;
+            if (this.root_ptr == ptr && this.Start == Start) return true;
+            return true;
+        }
+        public bool Equals(IStringEntityBase entity)
+        {
+            this.CheckReallocate();
+            return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length);
+        }
+        public bool Equals(string str)
+        {
+            this.CheckReallocate();
+            if (this.Length != str.Length) return false;
+            return this.SequenceEqual<char>(str);
+        }
+        public bool Equals(char[] c_arr)
+        {
+            this.CheckReallocate();
+            if (this.Length != c_arr.Length) return false;
+            return this.SequenceEqual<char>(c_arr);
+        }
+        public bool Equals(char c)
+        {
+            this.CheckReallocate();
+            return (this.Length == 1 && this[0] == c);
+        }
+        public bool Equals(IEnumerable<char> str_itr)
+        {
+            this.CheckReallocate();
+            return this.SequenceEqual<char>(str_itr);
+        }
+        public static bool operator ==(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
+        public override bool Equals(object obj)
+        {
+            return obj is IStringEntityBase && ((IStringEntityBase)obj).EqualsStringEntity(this.root_ptr, this.Start, this.Length);
+        }
+        public override int GetHashCode()
+        {
+            this.CheckReallocate();
+            int hash = this.Length.GetHashCode();
+            for (int i = 0; i < this.Length; i++)
+            {
+                hash = hash ^ this[i].GetHashCode();
+            }
+            return hash;
+        }
+
+        public override string ToString()
+        {
+            this.CheckReallocate();
+            return new string(this.root_ptr, this.Start, this.Length);
+        }
+        public char[] ToCharArray()
+        {
+            this.CheckReallocate();
+            char[] ret = new char[this.Length];
+            for (int i = 0; i < this.Length; i++)
+            {
+                ret[i] = this[i];
+            }
+            return ret;
+        }
+
+        private void CheckCharIndex(int index)
+        {
+#if UNITY_ASSERTIONS
+            if (index < 0 || this.Length <= index)
+            {
+                // simple exception patterns only can be used in BurstCompiler.
+                throw new IndexOutOfRangeException("index is out of range.");
+            }
+#endif
+        }
+        private void CheckReallocate()
+        {
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            if (*(this.gen_ptr) != this.gen_entity)
+            {
+                throw new InvalidOperationException("this entity is invalid reference.");
+            }
+#endif
+        }
+    }
+
+    /*
+    [StructLayout(LayoutKind.Auto)]
     public unsafe struct ReadOnlyStringEntity :
        IParseExt,
        IStringEntityBase,
@@ -427,6 +802,7 @@ namespace NativeStringCollections
             }
         }
     }
+    */
 
     public static class StringEntityExtentions
     {
