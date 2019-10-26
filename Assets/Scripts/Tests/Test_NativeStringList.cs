@@ -70,6 +70,38 @@ public class Test_NativeStringList : MonoBehaviour
         this.Test_RemoveRange("RemoveRange()");
         this.Test_Collection("after Test_RemoveRange()");
     }
+    public void OnClickReallocateTraceTest()
+    {
+        string str = "1234567890--@@";
+
+        var NSL = new NativeStringList(64, 4, Allocator.TempJob);
+
+        NSL.Add(str);
+        StringEntity entity = NSL[0];
+
+        bool effective_ref = true;
+
+        for (int i=0; i<100; i++)
+        {
+            NSL.Add(str);
+            try
+            {
+                Debug.Log("add: " + i.ToString() + ", entity: " + entity.ToString() + ", NSL [Size/Capacity] = [" + NSL.Size.ToString() + "/" + NSL.Capacity.ToString() + "]");
+            }
+            catch (InvalidOperationException e)
+            {
+                effective_ref = false;
+                Debug.Log("the reallocation of NativeStringList is detected by StringEntity.");
+                break;
+            }
+        }
+        if (effective_ref)
+        {
+            Debug.LogError("the reallocation of NativeStringList was not detected. add the macro: 'NATIVE_STRING_COLLECTION_TRACE_REALLOCATION' for using this feature.");
+        }
+
+        NSL.Dispose();
+    }
     public void OnClickParseStringTest()
     {
         //--- parse int

@@ -1,5 +1,5 @@
 ﻿
-#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+//#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
 
 using System;
 using System.Linq;
@@ -66,8 +66,8 @@ namespace NativeStringCollections
         public StringEntity(char* ptr, int start, int Length)
         {
             this.root_ptr = ptr;
-            this.Start = start;
-            this.Length = Length;
+            this.start = start;
+            this.len = Length;
         }
 #endif
 
@@ -163,7 +163,6 @@ namespace NativeStringCollections
         public override string ToString()
         {
             this.CheckReallocate();
-        //    UnityEngine.Debug.Log("ptr: " + ((int)this.root_ptr).ToString() + ", Start: " + this.Start.ToString() + ", Length: " + this.Length.ToString());
             return new string(this.root_ptr, this.Start, this.Length);
         }
         public char[] ToCharArray()
@@ -231,8 +230,8 @@ namespace NativeStringCollections
         public ReadOnlyStringEntity(char* ptr, int start, int Length)
         {
             this.root_ptr = ptr;
-            this.Start = start;
-            this.Length = Length;
+            this.start = start;
+            this.len = Length;
         }
 #endif
 
