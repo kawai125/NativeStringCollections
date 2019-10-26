@@ -70,6 +70,19 @@ public class Test_NativeStringList : MonoBehaviour
         this.Test_RemoveRange("RemoveRange()");
         this.Test_Collection("after Test_RemoveRange()");
     }
+    public void OnClickParseStringTest()
+    {
+        //--- parse int
+        this.Test_ParseInt32_String();
+        this.Test_ParseInt64_String();
+
+        //--- parse float
+        this.Test_ParseFloat32_String();
+        this.Test_ParseFloat64_String();
+
+        //--- parse hex
+        this.Test_ParseHex_String();
+    }
     public void OnClickReallocateTraceTest()
     {
         string str = "1234567890--@@";
@@ -101,12 +114,6 @@ public class Test_NativeStringList : MonoBehaviour
         }
 
         NSL.Dispose();
-    }
-    public void OnClickParseStringTest()
-    {
-        //--- parse int
-        //--- parse float
-        //--- parse hex
     }
 
     void Test_Collection(string tag)
@@ -303,11 +310,155 @@ public class Test_NativeStringList : MonoBehaviour
 
     void Test_ParseInt32_String()
     {
+        Debug.Log("== Parse Int32 test ==");
 
+        Debug.Log("boundary value check");
+        bool test_pass = true;
+
+        str_native.Clear();
+        str_list.Clear();
+
+        string in_range_lo = "-2147483648";
+        string in_range_hi = "2147483647";
+        string out_range_lo = "-2147483649";
+        string out_range_hi = "2147483648";
+
+        str_list.Add(in_range_lo.ToString());
+        str_list.Add(in_range_hi.ToString());
+        str_list.Add(out_range_lo.ToString());
+        str_list.Add(out_range_hi.ToString());
+
+        for(int i=0; i<str_list.Count; i++)
+        {
+            str_native.Add(str_list[i]);
+        }
+
+        for(int i=0; i<str_native.Length; i++)
+        {
+            var str = str_list[i];
+            ReadOnlyStringEntity str_e = str_native[i];
+
+            bool success = int.TryParse(str, out int value);
+            bool success_e = str_e.TryParse(out int value_e);
+
+            Debug.Log("parse str = '" + str + "', try = " + success.ToString());
+
+            if (success != success_e || value != value_e)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
+                             + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() +"], "
+                             + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "]");
+            }
+        }
+        if (!test_pass)
+        {
+            Debug.LogError("the boundary value check was failure");
+        }
+
+        Debug.Log("random value check");
+        test_pass = true;
+        this.GenerateRandomIntStrings(n_numeric_string, 2, 10, 64);
+
+        int int_count = 0;
+        for(int i=0; i<n_numeric_string; i++)
+        {
+            string str = str_list[i];
+            ReadOnlyStringEntity str_e = str_native[i];
+
+            bool success = int.TryParse(str, out int value);
+            bool success_e = str_e.TryParse(out int value_e);
+
+            if (success != success_e || value != value_e)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
+                             + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
+                             + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "]");
+            }
+            if (success) int_count++;
+        }
+        Debug.Log("parsed int count = " + int_count.ToString() + " / " + n_numeric_string.ToString());
+        if (!test_pass)
+        {
+            Debug.LogError("the random value check was failure");
+        }
     }
     void Test_ParseInt64_String()
     {
+        Debug.Log("== Parse Int64 test ==");
 
+        Debug.Log("boundary value check");
+        bool test_pass = true;
+
+        str_native.Clear();
+        str_list.Clear();
+
+        string in_range_lo = "-9223372036854775808";
+        string in_range_hi = "9223372036854775807";
+        string out_range_lo = "-9223372036854775809";
+        string out_range_hi = "9223372036854775808";
+
+        str_list.Add(in_range_lo.ToString());
+        str_list.Add(in_range_hi.ToString());
+        str_list.Add(out_range_lo.ToString());
+        str_list.Add(out_range_hi.ToString());
+
+        for (int i = 0; i < str_list.Count; i++)
+        {
+            str_native.Add(str_list[i]);
+        }
+
+        for (int i = 0; i < str_native.Length; i++)
+        {
+            var str = str_list[i];
+            ReadOnlyStringEntity str_e = str_native[i];
+
+            bool success = long.TryParse(str, out long value);
+            bool success_e = str_e.TryParse(out long value_e);
+
+            Debug.Log("parse str = '" + str + "', try = " + success.ToString());
+
+            if (success != success_e || value != value_e)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
+                             + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
+                             + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "]");
+            }
+        }
+        if (!test_pass)
+        {
+            Debug.LogError("the boundary value check was failure");
+        }
+
+        Debug.Log("random value check");
+        test_pass = true;
+        this.GenerateRandomIntStrings(n_numeric_string, 9, 19, 128);
+
+        int long_count = 0;
+        for (int i = 0; i < n_numeric_string; i++)
+        {
+            string str = str_list[i];
+            ReadOnlyStringEntity str_e = str_native[i];
+
+            bool success = long.TryParse(str, out long value);
+            bool success_e = str_e.TryParse(out long value_e);
+
+            if (success != success_e || value != value_e)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
+                             + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
+                             + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "]");
+            }
+            if (success) long_count++;
+        }
+        Debug.Log("parsed long count = " + long_count.ToString() + " / " + n_numeric_string.ToString());
+        if (!test_pass)
+        {
+            Debug.LogError("the random value check was failure");
+        }
     }
     void Test_ParseFloat32_String()
     {
@@ -402,19 +553,47 @@ public class Test_NativeStringList : MonoBehaviour
         line_count++;
         Debug.Log(" generated: " + line_count.ToString() + " strings, " + char_count.ToString() + " charactors.");
     }
-    void GenerateRandomInt32_Strings()
+    void GenerateRandomIntStrings(int n_str, int most_significant_digit, int digit_len, int fail_factor)
     {
+        if (digit_len <= 4 || fail_factor < 1)
+        {
+            Debug.LogError("cannot perform GenerateRandomIntStrings");
+            return;
+        }
 
-    }
-    void GenerateRandomInt64_Strings()
-    {
+        str_list.Clear();
+        str_native.Clear();
 
-    }
-    void GenerateRandomFloat32_Strings(bool exp_camel_mark)
-    {
+        for (int ii = 0; ii < n_str; ii++)
+        {
+            string str = "";
 
+            if(random.Next(0, 2) == 0)
+            {
+                str += '-';
+            }
+
+            str += random.Next(0, most_significant_digit + 1).ToString();
+
+            int len = random.Next(digit_len - 4, digit_len);
+            for(int jj=0; jj<len; jj++)
+            {
+                if (random.Next(0, fail_factor) == 0) 
+                {
+                    char c = (char)random.Next(33, 127);  // ASCII char code: [32~126], 32 is space.
+                    str += c;
+                }
+                else
+                {
+                    str += random.Next(0, 10).ToString();
+                }
+            }
+
+            str_list.Add(str);
+            str_native.Add(str);
+        }
     }
-    void GenerateRandomFloat64_Strings(bool exp_camel_mark)
+    void GenerateRandomFloatStrings(bool exp_camel_mark)
     {
 
     }

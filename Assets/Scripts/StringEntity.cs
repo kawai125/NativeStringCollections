@@ -108,6 +108,10 @@ namespace NativeStringCollections
             return new ReadOnlyStringEntity(this.root_ptr, this.Start, this.Length);
 #endif
         }
+        public static implicit operator ReadOnlyStringEntity(StringEntity val)
+        {
+            return val.GetReadOnlyEntity();
+        }
 
         public bool EqualsStringEntity(char* ptr, int Start, int Length)
         {
@@ -401,20 +405,6 @@ namespace NativeStringCollections
                     return true;
                 }
             }
-            else if(value.Length == 1)
-            {
-                // match "0" or "1"
-                if (value[0] == '0')
-                {
-                    result = false;
-                    return true;
-                }
-                else if(value[0] == '1')
-                {
-                    result = true;
-                    return true;
-                }
-            }
             result = false;
             return false;
         }
@@ -422,7 +412,6 @@ namespace NativeStringCollections
         public static bool TryParse(this IParseExt value, out int result)
         {
             const int max_len = 10;
-            const int max_val = 214748364;  // check at (max_len - 1) digit
 
             result = 0;
             if (value.Length <= 0) return false;
@@ -438,21 +427,22 @@ namespace NativeStringCollections
                 if (value[i].IsDigit(out int d))
                 {
                     tmp = tmp * 10 + d;
-                    if (i == (max_len - i_start - 1) && tmp > max_val) return false;
-                    if (i == (max_len - i_start) && ((sign == -1 && d == 8) || (sign == 1 && d == 7))) return false;
                 }
                 else
                 {
                     return false;
                 }
             }
+
+            if (sign == 1 && tmp < 0) return false;
+            if (sign == -1 && (tmp - 1) < 0) return false;
+
             result = sign * tmp;
             return true;
         }
         public static bool TryParse(this IParseExt value, out long result)
         {
             const int max_len = 19;
-            const long max_val = 922337203685477580;  // check at (max_len - 1) digit
 
             result = 0;
             if (value.Length <= 0) return false;
@@ -467,15 +457,17 @@ namespace NativeStringCollections
             {
                 if (value[i].IsDigit(out int d))
                 {
-                    tmp = tmp * 10 + d;
-                    if (i == (max_len - 1 - i_start) && tmp > max_val) return false;
-                    if (i == (max_len - i_start) && ((sign == -1 && d == 8) || (sign == 1 && d == 7))) return false;
+                    tmp = tmp * 10L + (long)d;
                 }
                 else
                 {
                     return false;
                 }
             }
+
+            if (sign == 1 && tmp < 0L) return false;
+            if (sign == -1 && (tmp - 1L) < 0L) return false;
+
             result = sign * tmp;
             return true;
         }
@@ -493,19 +485,23 @@ namespace NativeStringCollections
                 mantissa = mantissa * 0.1f + (float)value[i].ToInt();
             }
 
-            mantissa *= sign;
-
-            // range check (-1.17549e-38 ~ 3.40282e+38)
-            if (math.abs(n_pow) > 38)
+            // range check (1.17549e-38 ~ 3.40282e+38)
+            if (math.abs(n_pow) > 38) return false;
+            if (math.abs(n_pow) == 38 && mantissa > 3.4028234f)
             {
-                return false;
-            }
-            else if (math.abs(n_pow) == 38 && (mantissa <= -1.17549f || 3.40282f <= mantissa))
-            {
-                return false;
+                if(sign == 1)
+                {
+                    result = float.PositiveInfinity;
+                    return true;
+                }
+                else
+                {
+                    result = float.NegativeInfinity;
+                    return true;
+                }
             }
 
-            result = mantissa * math.pow(10.0f, n_pow);
+            result = sign * mantissa * math.pow(10.0f, n_pow);
             return true;
         }
         public static bool TryParse(this IParseExt value, out double result)
@@ -521,19 +517,23 @@ namespace NativeStringCollections
                 mantissa = mantissa * 0.1 + (double)value[i].ToInt();
             }
 
-            mantissa *= sign;
-
             // range check (2.22507e-308 ~ 1.79769e+308)
-            if (math.abs(n_pow) > 308)
+            if (math.abs(n_pow) > 308) return false;
+            if (math.abs(n_pow) == 308 && mantissa > 1.7976931348623)
             {
-                return false;
-            }
-            else if (math.abs(n_pow) == 308 && (mantissa <= -2.22507 || 1.79769 <= mantissa))
-            {
-                return false;
+                if (sign == 1)
+                {
+                    result = double.PositiveInfinity;
+                    return true;
+                }
+                else
+                {
+                    result = double.NegativeInfinity;
+                    return true;
+                }
             }
 
-            result = mantissa * math.pow(10.0, n_pow);
+            result = sign * mantissa * math.pow(10.0, n_pow);
             return true;
         }
 
