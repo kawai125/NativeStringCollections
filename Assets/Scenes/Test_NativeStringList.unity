@@ -1074,7 +1074,7 @@ MonoBehaviour:
   seed: 5687
   factor_delim: 150
   n_char: 400
-  n_RemoveAt: 4
-  n_RemoveRange: 0
+  n_RemoveAt: 28
+  n_RemoveRange: 7
   len_RemoveRange: 4
   n_numeric_string: 0
