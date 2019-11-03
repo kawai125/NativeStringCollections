@@ -78,7 +78,7 @@ public class Test_NativeStringList : MonoBehaviour
 
         //--- parse float
         this.Test_ParseFloat32_String();
-        //this.Test_ParseFloat64_String();
+        this.Test_ParseFloat64_String();
 
         //--- parse hex
         this.Test_ParseHex_String();
@@ -578,12 +578,14 @@ public class Test_NativeStringList : MonoBehaviour
         string in_range_lo = "-1.797693134862e+308";
         string in_range_hi = "1.797693134862E+308";
         string out_range_lo = "-1.797693134863e+308";
-        string out_range_hi = "1.797693134862E+308";
+        string out_range_hi = "1.797693134863E+308";
 
         str_list.Add(in_range_lo.ToString());
         str_list.Add(in_range_hi.ToString());
         str_list.Add(out_range_lo.ToString());
         str_list.Add(out_range_hi.ToString());
+
+        str_list.Add("00924731130.63782E+299");
 
         for (int i = 0; i < str_list.Count; i++)
         {
@@ -614,8 +616,13 @@ public class Test_NativeStringList : MonoBehaviour
         }
 
         Debug.Log("random value check");
-        test_pass = true;
         this.GenerateRandomFloatStrings(n_numeric_string, 2, 18, 309, 64);
+
+        test_pass = true;
+        int fail_count = 0;
+
+        double max_rel_err = 0.0;
+        int max_err_id = 0;
 
         int int_count = 0;
         for (int i = 0; i < n_numeric_string; i++)
@@ -629,16 +636,24 @@ public class Test_NativeStringList : MonoBehaviour
             if (!this.EqualsDouble(value, value_e, 1.0e-14, out double rel_diff) || success != success_e)
             {
                 test_pass = false;
+                fail_count++;
                 Debug.LogError("failed to parse i = " + i.ToString() + " string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
                              + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
                              + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "], rel_diff = " + rel_diff.ToString());
             }
             if (success) int_count++;
+
+            if (max_rel_err < rel_diff)
+            {
+                max_rel_err = rel_diff;
+                max_err_id = i;
+            }
         }
         Debug.Log("parsed int count = " + int_count.ToString() + " / " + n_numeric_string.ToString());
+        Debug.Log("max relative error = " + max_rel_err.ToString() + " at " + str_list[max_err_id]);
         if (!test_pass)
         {
-            Debug.LogError("the random value check was failure");
+            Debug.LogError("the random value check was failure, fail_count=" + fail_count.ToString());
         }
     }
     void Test_ParseHex_String()

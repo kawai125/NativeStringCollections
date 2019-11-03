@@ -506,7 +506,8 @@ namespace NativeStringCollections
             return true;
         }
         /// <summary>
-        /// Try to parse StringEntity to float. Cannot accept whitespaces & hex format (this is differ from official C# float.TryParse()). Use TryParseHex(out T) for hex data.
+        /// Try to parse StringEntity to double. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# float.TryParse()).
+        /// Use TryParseHex(out T) for hex data.
         /// </summary>
         public static bool TryParse(this IParseExt value, out float result)
         {
@@ -515,67 +516,14 @@ namespace NativeStringCollections
 
             if (!value.TryParse(out double tmp)) return false;
 
-            UnityEngine.Debug.Log("tmp=" + tmp.ToString() + ", f=" + ((float)tmp).ToString());
-
             float f_cast = (float)tmp;
             if (float.IsInfinity(f_cast)) return false;
 
             result = f_cast;
             return true;
         }
-
-        public static bool TryParse_org(this IParseExt value, out float result)
-        {
-            result = 0.0f;
-            if (value.Length <= 0) return false;
-            if (!value.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
-
-            //UnityEngine.Debug.Log("i_start=" + i_start.ToString() + ", dot_pos=" + dot_pos.ToString() + ", exp_pos=" + exp_pos.ToString());
-
-            //float mantissa = 0.0f;
-
-            int mantissa_int = 0;
-            int mantissa_count = 0;
-            for (int i = i_start; i < exp_pos; i++)
-            {
-                if (i == dot_pos) continue;
-                //mantissa = mantissa * 0.1f + (float)value[i].ToInt();
-                //UnityEngine.Debug.Log("i=" + i.ToString() + ", mantissa=" + mantissa.ToString() + ", value[i]=" + value[i].ToString());
-
-                if(mantissa_count <= 8)
-                {
-                    mantissa_int = mantissa_int * 10 + (int)(value[i].ToInt());
-                    if (mantissa_int != 0) mantissa_count++;
-                    //UnityEngine.Debug.Log("i=" + i.ToString() + ", mantissa=" + mantissa_int.ToString() + ", value[i]=" + value[i].ToString() + ", count=" + mantissa_count.ToString());
-                }
-            }
-            int mantissa_pow = -(mantissa_count - 1);
-
-            //float mantissa = (float)mantissa_int * CalcExp10Float(mantissa_pow);
-            //float flac = CalcExp10Float(-mantissa_count);
-            //UnityEngine.Debug.Log("mantissa=" + mantissa.ToString() + " flac=" + flac.ToString());
-
-            //UnityEngine.Debug.Log("n_pow=" + n_pow.ToString());
-
-            // range check ( ~ 3.40282e+38)
-            //if (math.abs(n_pow) > 38 || (math.abs(n_pow) == 38 && mantissa > 3.40282f))
-            //{
-            //    return false;
-            //}
-            if (math.abs(n_pow) > 38) return false;
-            if (math.abs(n_pow) == 38)
-            {
-                //UnityEngine.Debug.Log("mantissa=" + ((float)mantissa_int).ToString() + " border=" + (3.40282f * CalcExp10Float(-mantissa_pow)).ToString());
-                if ((float)mantissa_int > 3.40282f * CalcExp10Float(-mantissa_pow)) return false;
-            }
-
-            //UnityEngine.Debug.Log("mantissa=" + mantissa_int.ToString() + " flac=" + (n_pow + mantissa_pow).ToString());
-            //result = ((float)mantissa_int) * (sign * CalcExp10Float(n_pow + mantissa_pow));
-            result = (math.pow(10.0f, mantissa_pow) * (float)mantissa_int) * (sign * math.pow(10.0f, n_pow));
-            return true;
-        }
         /// <summary>
-        /// Try to parse StringEntity to double. Cannot accept whitespaces, comma insertion, and hex format (this is differ from official C# double.TryParse()).
+        /// Try to parse StringEntity to double. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# double.TryParse()).
         /// Use TryParseHex(out T) for hex data.
         /// </summary>
         public static bool TryParse(this IParseExt value, out double result)
@@ -584,7 +532,7 @@ namespace NativeStringCollections
             if (value.Length <= 0) return false;
             if (!value.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
 
-            UnityEngine.Debug.Log("i_start=" + i_start.ToString() + ", dot_pos=" + dot_pos.ToString() + ", exp_pos=" + exp_pos.ToString() + ", n_pow=" + n_pow.ToString());
+            //UnityEngine.Debug.Log("i_start=" + i_start.ToString() + ", dot_pos=" + dot_pos.ToString() + ", exp_pos=" + exp_pos.ToString() + ", n_pow=" + n_pow.ToString());
 
             double mantissa = 0.0;
             for (int i = exp_pos - 1; i >= i_start; i--)
@@ -593,29 +541,9 @@ namespace NativeStringCollections
                 mantissa = mantissa * 0.1 + (double)value[i].ToInt();
             }
 
-            // range check ( ~ 1.79769e+308)
-            //if (math.abs(n_pow) > 308 || (math.abs(n_pow) == 308 && mantissa > 1.7976931348623))
-            //{
-            //    return false;
-            //}
-
             int m_pow = 0;
             if (dot_pos > i_start + 1) m_pow = dot_pos - i_start - 1;
-            //if (dot_pos == exp_pos)
-            //{
-            //    m_pow = dot_pos - i_start - 1;
-            //}
-            //else
-            //{
-            //    if (dot_pos > i_start + 1)
-            //    {
-            //        m_pow = dot_pos - i_start - 1;
-            //    }
-            //}
-            //if (dot_pos > i_start + 1) m_pow = dot_pos - i_start - 2;  // -2: MSD & dot space
-            //if (dot_pos == exp_pos) m_pow++;                           // dot space is 0 in this condition
-
-            UnityEngine.Debug.Log("m_pow=" + m_pow.ToString());
+            if (dot_pos == i_start) m_pow = -1;
 
             double tmp = mantissa * (sign * math.pow(10.0, n_pow + m_pow));
             if (double.IsInfinity(tmp)) return false;
@@ -628,6 +556,20 @@ namespace NativeStringCollections
         {
             i_start = 0;
             if (value[0].IsSign(out sign)) i_start = 1;
+
+            // eat zeros on the head
+            for(int i=i_start; i<value.Length; i++)
+            {
+                char c = value[i];
+                if(c == '0')
+                {
+                    i_start++;
+                }
+                else
+                {
+                    break;
+                }
+            }
 
             dot_pos = -1;
             exp_pos = -1;
@@ -710,34 +652,6 @@ namespace NativeStringCollections
 
             return true;
         }
-        private static float CalcExp10Float(int n)
-        {
-            if (n == 0) return 1.0f;
-
-            float b = 10.0f;
-            if (n < 0) b = 0.1f;
-
-            float t = 1.0f;
-            for(int i=0; i<math.abs(n); i++)
-            {
-                t = t * b;
-            }
-            return t;
-        }
-        private static double CalcExp10Double(int n)
-        {
-            if (n == 0) return 1.0;
-
-            double b = 10.0;
-            if (n < 0) b = 0.1;
-
-            for (int i = 0; i < math.abs(n); i++)
-            {
-                b = b * b;
-            }
-            return b;
-        }
-
 
         unsafe public static bool TryParseHex(this IParseExt value, out int result)
         {
@@ -904,11 +818,6 @@ namespace NativeStringCollections
             public static bool IsDot(this char c)
             {
                 if (c == '.') return true;
-                return false;
-            }
-            public static bool IsComma(this char c)
-            {
-                if (c == ',') return true;
                 return false;
             }
             public static bool IsExp(this char c)
