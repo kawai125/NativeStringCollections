@@ -358,7 +358,9 @@ namespace NativeStringCollections
 
     public static class StringEntityExtentions
     {
-
+        /// <summary>
+        /// Try to parse StringEntity to bool. Cannot accept whitespaces (this is differ from official C# bool.TryParse()).
+        /// </summary>
         public static bool TryParse(this IParseExt value, out bool result)
         {
             if (value.Length == 5)
@@ -408,7 +410,9 @@ namespace NativeStringCollections
             result = false;
             return false;
         }
-
+        /// <summary>
+        /// Try to parse StringEntity to Int32. Cannot accept whitespaces & hex format (this is differ from official C# int.TryParse()). Use TryParseHex(out T) for hex data.
+        /// </summary>
         public static bool TryParse(this IParseExt value, out int result)
         {
             const int max_len = 10;
@@ -419,14 +423,31 @@ namespace NativeStringCollections
             int i_start = 0;
             if (value[0].IsSign(out int sign)) i_start = 1;
 
-            if (value.Length - i_start > max_len) return false;
+            int digit_count = 0;
+            int MSD = 0;
 
             int tmp = 0;
             for (int i = i_start; i < value.Length; i++)
             {
                 if (value[i].IsDigit(out int d))
                 {
+                    if (digit_count > 0) digit_count++;
+
+                    if (MSD == 0 && d > 0)
+                    {
+                        MSD = d;
+                        digit_count = 1;
+                    }
+
                     tmp = tmp * 10 + d;
+
+                    if (digit_count == max_len)
+                    {
+                        if (MSD > 2) return false;
+                        if (sign == 1 && tmp < 0) return false;
+                        if (sign == -1 && (tmp - 1) < 0) return false;
+                    }
+                    if (digit_count > max_len) return false;
                 }
                 else
                 {
@@ -434,12 +455,12 @@ namespace NativeStringCollections
                 }
             }
 
-            if (sign == 1 && tmp < 0) return false;
-            if (sign == -1 && (tmp - 1) < 0) return false;
-
             result = sign * tmp;
             return true;
         }
+        /// <summary>
+        /// Try to parse StringEntity to Int64. Cannot accept whitespaces & hex format (this is differ from official C# long.TryParse()). Use TryParseHex(out T) for hex data.
+        /// </summary>
         public static bool TryParse(this IParseExt value, out long result)
         {
             const int max_len = 19;
@@ -450,14 +471,30 @@ namespace NativeStringCollections
             int i_start = 0;
             if (value[0].IsSign(out int sign)) i_start = 1;
 
-            if (value.Length - i_start > max_len) return false;
+            int digit_count = 0;
+            int MSD = 0;
 
             long tmp = 0;
             for (int i = i_start; i < value.Length; i++)
             {
                 if (value[i].IsDigit(out int d))
                 {
-                    tmp = tmp * 10L + (long)d;
+                    if (digit_count > 0) digit_count++;
+
+                    if (MSD == 0 && d > 0)
+                    {
+                        MSD = d;
+                        digit_count = 1;
+                    }
+
+                    tmp = tmp * 10 + d;
+
+                    if (digit_count == max_len)
+                    {
+                        if (sign == 1 && tmp < 0L) return false;
+                        if (sign == -1 && (tmp - 1L) < 0L) return false;
+                    }
+                    if (digit_count > max_len) return false;
                 }
                 else
                 {
@@ -465,50 +502,89 @@ namespace NativeStringCollections
                 }
             }
 
-            if (sign == 1 && tmp < 0L) return false;
-            if (sign == -1 && (tmp - 1L) < 0L) return false;
-
             result = sign * tmp;
             return true;
         }
-
+        /// <summary>
+        /// Try to parse StringEntity to float. Cannot accept whitespaces & hex format (this is differ from official C# float.TryParse()). Use TryParseHex(out T) for hex data.
+        /// </summary>
         public static bool TryParse(this IParseExt value, out float result)
         {
             result = 0.0f;
             if (value.Length <= 0) return false;
-            if (value.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
 
-            float mantissa = 0.0f;
-            for (int i = exp_pos - 1; i >= i_start; i--)
-            {
-                if (i == dot_pos) continue;
-                mantissa = mantissa * 0.1f + (float)value[i].ToInt();
-            }
+            if (!value.TryParse(out double tmp)) return false;
 
-            // range check (1.17549e-38 ~ 3.40282e+38)
-            if (math.abs(n_pow) > 38) return false;
-            if (math.abs(n_pow) == 38 && mantissa > 3.4028234f)
-            {
-                if(sign == 1)
-                {
-                    result = float.PositiveInfinity;
-                    return true;
-                }
-                else
-                {
-                    result = float.NegativeInfinity;
-                    return true;
-                }
-            }
+            UnityEngine.Debug.Log("tmp=" + tmp.ToString() + ", f=" + ((float)tmp).ToString());
 
-            result = sign * mantissa * math.pow(10.0f, n_pow);
+            float f_cast = (float)tmp;
+            if (float.IsInfinity(f_cast)) return false;
+
+            result = f_cast;
             return true;
         }
-        public static bool TryParse(this IParseExt value, out double result)
+
+        public static bool TryParse_org(this IParseExt value, out float result)
         {
             result = 0.0f;
             if (value.Length <= 0) return false;
-            if (value.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
+            if (!value.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
+
+            //UnityEngine.Debug.Log("i_start=" + i_start.ToString() + ", dot_pos=" + dot_pos.ToString() + ", exp_pos=" + exp_pos.ToString());
+
+            //float mantissa = 0.0f;
+
+            int mantissa_int = 0;
+            int mantissa_count = 0;
+            for (int i = i_start; i < exp_pos; i++)
+            {
+                if (i == dot_pos) continue;
+                //mantissa = mantissa * 0.1f + (float)value[i].ToInt();
+                //UnityEngine.Debug.Log("i=" + i.ToString() + ", mantissa=" + mantissa.ToString() + ", value[i]=" + value[i].ToString());
+
+                if(mantissa_count <= 8)
+                {
+                    mantissa_int = mantissa_int * 10 + (int)(value[i].ToInt());
+                    if (mantissa_int != 0) mantissa_count++;
+                    //UnityEngine.Debug.Log("i=" + i.ToString() + ", mantissa=" + mantissa_int.ToString() + ", value[i]=" + value[i].ToString() + ", count=" + mantissa_count.ToString());
+                }
+            }
+            int mantissa_pow = -(mantissa_count - 1);
+
+            //float mantissa = (float)mantissa_int * CalcExp10Float(mantissa_pow);
+            //float flac = CalcExp10Float(-mantissa_count);
+            //UnityEngine.Debug.Log("mantissa=" + mantissa.ToString() + " flac=" + flac.ToString());
+
+            //UnityEngine.Debug.Log("n_pow=" + n_pow.ToString());
+
+            // range check ( ~ 3.40282e+38)
+            //if (math.abs(n_pow) > 38 || (math.abs(n_pow) == 38 && mantissa > 3.40282f))
+            //{
+            //    return false;
+            //}
+            if (math.abs(n_pow) > 38) return false;
+            if (math.abs(n_pow) == 38)
+            {
+                //UnityEngine.Debug.Log("mantissa=" + ((float)mantissa_int).ToString() + " border=" + (3.40282f * CalcExp10Float(-mantissa_pow)).ToString());
+                if ((float)mantissa_int > 3.40282f * CalcExp10Float(-mantissa_pow)) return false;
+            }
+
+            //UnityEngine.Debug.Log("mantissa=" + mantissa_int.ToString() + " flac=" + (n_pow + mantissa_pow).ToString());
+            //result = ((float)mantissa_int) * (sign * CalcExp10Float(n_pow + mantissa_pow));
+            result = (math.pow(10.0f, mantissa_pow) * (float)mantissa_int) * (sign * math.pow(10.0f, n_pow));
+            return true;
+        }
+        /// <summary>
+        /// Try to parse StringEntity to double. Cannot accept whitespaces, comma insertion, and hex format (this is differ from official C# double.TryParse()).
+        /// Use TryParseHex(out T) for hex data.
+        /// </summary>
+        public static bool TryParse(this IParseExt value, out double result)
+        {
+            result = 0.0;
+            if (value.Length <= 0) return false;
+            if (!value.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
+
+            UnityEngine.Debug.Log("i_start=" + i_start.ToString() + ", dot_pos=" + dot_pos.ToString() + ", exp_pos=" + exp_pos.ToString() + ", n_pow=" + n_pow.ToString());
 
             double mantissa = 0.0;
             for (int i = exp_pos - 1; i >= i_start; i--)
@@ -517,23 +593,34 @@ namespace NativeStringCollections
                 mantissa = mantissa * 0.1 + (double)value[i].ToInt();
             }
 
-            // range check (2.22507e-308 ~ 1.79769e+308)
-            if (math.abs(n_pow) > 308) return false;
-            if (math.abs(n_pow) == 308 && mantissa > 1.7976931348623)
-            {
-                if (sign == 1)
-                {
-                    result = double.PositiveInfinity;
-                    return true;
-                }
-                else
-                {
-                    result = double.NegativeInfinity;
-                    return true;
-                }
-            }
+            // range check ( ~ 1.79769e+308)
+            //if (math.abs(n_pow) > 308 || (math.abs(n_pow) == 308 && mantissa > 1.7976931348623))
+            //{
+            //    return false;
+            //}
 
-            result = sign * mantissa * math.pow(10.0, n_pow);
+            int m_pow = 0;
+            if (dot_pos > i_start + 1) m_pow = dot_pos - i_start - 1;
+            //if (dot_pos == exp_pos)
+            //{
+            //    m_pow = dot_pos - i_start - 1;
+            //}
+            //else
+            //{
+            //    if (dot_pos > i_start + 1)
+            //    {
+            //        m_pow = dot_pos - i_start - 1;
+            //    }
+            //}
+            //if (dot_pos > i_start + 1) m_pow = dot_pos - i_start - 2;  // -2: MSD & dot space
+            //if (dot_pos == exp_pos) m_pow++;                           // dot space is 0 in this condition
+
+            UnityEngine.Debug.Log("m_pow=" + m_pow.ToString());
+
+            double tmp = mantissa * (sign * math.pow(10.0, n_pow + m_pow));
+            if (double.IsInfinity(tmp)) return false;
+
+            result = tmp;
             return true;
         }
 
@@ -548,49 +635,107 @@ namespace NativeStringCollections
             n_pow = 0;
             int exp_sign = 1;
 
+            int digit_count = 0;
+            int zero_count = 0;
+            bool non_zero_found = false;
+
+            int dummy;
+
             // format check
             for (int i = i_start; i < value.Length; i++)
             {
                 char c = value[i];
-                if (c.IsDigit(out int dummy))
+                //UnityEngine.Debug.Log("parse format: i=" + i.ToString() + ", c=" + c.ToString());
+                if (c.IsDigit(out dummy))
                 {
+                    if (exp_pos == -1) digit_count++;
+                    if (dummy != 0) non_zero_found = true;
+                    if (!non_zero_found && exp_pos == -1 && dummy == 0) zero_count++;
                     // do nothing
+                    //UnityEngine.Debug.Log("c is number");
                 }
                 else if (c.IsDot())
                 {
                     if (dot_pos != -1 || dot_pos == i_start + 1) return false;
                     if (exp_pos > 0 && i >= exp_pos) return false;
                     dot_pos = i;
+                    //UnityEngine.Debug.Log("c is dot");
                 }
                 else if (c.IsExp())
                 {
+                    //UnityEngine.Debug.Log("c is EXP");
+
+                    //if (exp_pos != -1) return false;
+                    //if (i <= i_start + 1) return false;
+                    //if (value.Length - i < 2) return false;  // [+/-] & 1 digit or lager EXP num.
                     if (exp_pos != -1 ||
                         i == i_start + 1 ||
                         (value.Length - i) < 2 ||
-                        value[i + 1].IsSign(out exp_sign)) return false;
+                        !value[i + 1].IsSign(out exp_sign)) return false;
 
                     exp_pos = i;
                 }
+                else if(c.IsSign(out dummy))
+                {
+                    if (i != exp_pos + 1) return false;
+                    // do nothing (exp_sign is read in IsExp() check.)
+                }
                 else
                 {
+                    //UnityEngine.Debug.Log("failure to parse");
                     return false;
                 }
             }
 
             // decode exp part
-            for (int i = value.Length - 1; i > exp_pos + 1; i--)
+            if(exp_pos > 0)
             {
-                n_pow = n_pow * 10 + value[i].ToInt();
+                if (value.Length - (exp_pos + 2) > 8) return false;  // capacity of int
+                for (int i = exp_pos + 2; i < value.Length; i++)
+                {
+                    n_pow = n_pow * 10 + value[i].ToInt();
+                    //UnityEngine.Debug.Log("n_pow(1)=" + n_pow.ToString());
+                }
+                n_pow *= exp_sign;
             }
-            n_pow *= exp_sign;
+            else
+            {
+                // no [e/E+-[int]] part
+                exp_pos = value.Length;
+            }
 
-            // normalize mantissa (force format as f.fff...)
-            if (dot_pos > i_start + 1)
-            {
-                n_pow += (dot_pos - (i_start + 1));
-            }
+            if (dot_pos < 0) dot_pos = exp_pos;
+
+            //UnityEngine.Debug.Log("ParseFloatFormat=" + true.ToString());
 
             return true;
+        }
+        private static float CalcExp10Float(int n)
+        {
+            if (n == 0) return 1.0f;
+
+            float b = 10.0f;
+            if (n < 0) b = 0.1f;
+
+            float t = 1.0f;
+            for(int i=0; i<math.abs(n); i++)
+            {
+                t = t * b;
+            }
+            return t;
+        }
+        private static double CalcExp10Double(int n)
+        {
+            if (n == 0) return 1.0;
+
+            double b = 10.0;
+            if (n < 0) b = 0.1;
+
+            for (int i = 0; i < math.abs(n); i++)
+            {
+                b = b * b;
+            }
+            return b;
         }
 
 
@@ -743,13 +888,15 @@ namespace NativeStringCollections
                     hex = (uint)d;
                     return true;
                 }
-                else
+                else if ('A' <= c && c <= 'F')
                 {
-                    if ('A' <= c && c <= 'F')
-                    {
-                        hex = (uint)(c - 'A' + 10);
-                        return true;
-                    }
+                    hex = (uint)(c - 'A' + 10);
+                    return true;
+                }
+                else if ('a' <= c && c <= 'f')
+                {
+                    hex = (uint)(c - 'a' + 10);
+                    return true;
                 }
                 hex = 0;
                 return false;
@@ -757,6 +904,11 @@ namespace NativeStringCollections
             public static bool IsDot(this char c)
             {
                 if (c == '.') return true;
+                return false;
+            }
+            public static bool IsComma(this char c)
+            {
+                if (c == ',') return true;
                 return false;
             }
             public static bool IsExp(this char c)

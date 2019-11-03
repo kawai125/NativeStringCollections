@@ -78,7 +78,7 @@ public class Test_NativeStringList : MonoBehaviour
 
         //--- parse float
         this.Test_ParseFloat32_String();
-        this.Test_ParseFloat64_String();
+        //this.Test_ParseFloat64_String();
 
         //--- parse hex
         this.Test_ParseHex_String();
@@ -322,13 +322,15 @@ public class Test_NativeStringList : MonoBehaviour
         string in_range_hi = "2147483647";
         string out_range_lo = "-2147483649";
         string out_range_hi = "2147483648";
+        string out_sp_1 = "4400000000";  // overflow to plus region
 
         str_list.Add(in_range_lo.ToString());
         str_list.Add(in_range_hi.ToString());
         str_list.Add(out_range_lo.ToString());
         str_list.Add(out_range_hi.ToString());
+        str_list.Add(out_sp_1.ToString());
 
-        for(int i=0; i<str_list.Count; i++)
+        for (int i=0; i<str_list.Count; i++)
         {
             str_native.Add(str_list[i]);
         }
@@ -341,7 +343,7 @@ public class Test_NativeStringList : MonoBehaviour
             bool success = int.TryParse(str, out int value);
             bool success_e = str_e.TryParse(out int value_e);
 
-            Debug.Log("parse str = '" + str + "', try = " + success.ToString());
+            Debug.Log("parse str = '" + str + "', try = " + success.ToString() + ", value = " + value.ToString());
 
             if (success != success_e || value != value_e)
             {
@@ -417,7 +419,7 @@ public class Test_NativeStringList : MonoBehaviour
             bool success = long.TryParse(str, out long value);
             bool success_e = str_e.TryParse(out long value_e);
 
-            Debug.Log("parse str = '" + str + "', try = " + success.ToString());
+            Debug.Log("parse str = '" + str + "', try = " + success.ToString() + ", value = " + value.ToString());
 
             if (success != success_e || value != value_e)
             {
@@ -462,11 +464,182 @@ public class Test_NativeStringList : MonoBehaviour
     }
     void Test_ParseFloat32_String()
     {
+        Debug.Log("== Parse Float32 test ==");
 
+        Debug.Log("boundary value check");
+        bool test_pass = true;
+
+        str_native.Clear();
+        str_list.Clear();
+
+        string in_range_lo = "-3.40281e+38";
+        string in_range_hi = "3.40281E+38";
+        string out_range_lo = "-3.40283e+38";
+        string out_range_hi = "3.40283E+38";
+
+        str_list.Add(in_range_lo.ToString());
+        str_list.Add(in_range_hi.ToString());
+        str_list.Add(out_range_lo.ToString());
+        str_list.Add(out_range_hi.ToString());
+
+        str_list.Add("12345678987654321");
+        str_list.Add("-12345678987654321");
+        str_list.Add("123456789.87654321");
+        str_list.Add("-123456789.87654321");
+        str_list.Add("12345678987654321e-5");
+        str_list.Add("-12345678987654321E-5");
+        str_list.Add("123456789.87654321e-5");
+        str_list.Add("-123456789.87654321E-5");
+        str_list.Add("000.00123456789e-5");
+        str_list.Add("-000.00123456789E-5");
+        str_list.Add("1.11111111e-60");
+        str_list.Add("-1.11111111e-60");
+
+        for (int i = 0; i < str_list.Count; i++)
+        {
+            str_native.Add(str_list[i]);
+        }
+
+        for (int i = 0; i < str_native.Length; i++)
+        {
+            var str = str_list[i];
+            ReadOnlyStringEntity str_e = str_native[i];
+
+            bool success = float.TryParse(str, out float value);
+            bool success_e = str_e.TryParse(out float value_e);
+
+            Debug.Log("parse str = '" + str + "', try = " + success.ToString() + ", value = " + value.ToString());
+
+            if (!this.EqualsFloat(value, value_e, 1.0e-5f, out float rel_diff) || success != success_e)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. i = " + i.ToString() + " string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
+                             + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
+                             + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "], rel_diff = " + rel_diff.ToString());
+            }
+        }
+        if (!test_pass)
+        {
+            Debug.LogError("the boundary value check was failure");
+        }
+
+        Debug.Log("random value check");
+        //this.GenerateRandomIntStrings(n_numeric_string, 2, 10, 64);
+        this.GenerateRandomFloatStrings(n_numeric_string, 3, 8, 39, 64);
+
+        test_pass = true;
+        int fail_count = 0;
+
+        float max_rel_err = 0.0f;
+        int max_err_id = 0;
+
+        int int_count = 0;
+        for (int i = 0; i < n_numeric_string; i++)
+        {
+            string str = str_list[i];
+            ReadOnlyStringEntity str_e = str_native[i];
+
+            bool success = float.TryParse(str, out float value);
+            bool success_e = str_e.TryParse(out float value_e);
+
+            if (!this.EqualsFloat(value, value_e, 1.0e-5f, out float rel_diff) || success != success_e)
+            {
+                test_pass = false;
+                fail_count++;
+                Debug.LogError("failed to parse i = " + i.ToString() + " string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
+                             + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
+                             + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "], rel_diff = " + rel_diff.ToString());
+            }
+            if (success) int_count++;
+
+            if(max_rel_err < rel_diff)
+            {
+                max_rel_err = rel_diff;
+                max_err_id = i;
+            }
+        }
+        Debug.Log("parsed int count = " + int_count.ToString() + " / " + n_numeric_string.ToString());
+        Debug.Log("max relative error = " + max_rel_err.ToString() + " at " + str_list[max_err_id]);
+        if (!test_pass)
+        {
+            Debug.LogError("the random value check was failure, fail_count=" + fail_count.ToString());
+        }
     }
     void Test_ParseFloat64_String()
     {
+        Debug.Log("== Parse Float64 test ==");
 
+        Debug.Log("boundary value check");
+        bool test_pass = true;
+
+        str_native.Clear();
+        str_list.Clear();
+
+        string in_range_lo = "-1.797693134862e+308";
+        string in_range_hi = "1.797693134862E+308";
+        string out_range_lo = "-1.797693134863e+308";
+        string out_range_hi = "1.797693134862E+308";
+
+        str_list.Add(in_range_lo.ToString());
+        str_list.Add(in_range_hi.ToString());
+        str_list.Add(out_range_lo.ToString());
+        str_list.Add(out_range_hi.ToString());
+
+        for (int i = 0; i < str_list.Count; i++)
+        {
+            str_native.Add(str_list[i]);
+        }
+
+        for (int i = 0; i < str_native.Length; i++)
+        {
+            var str = str_list[i];
+            ReadOnlyStringEntity str_e = str_native[i];
+
+            bool success = double.TryParse(str, out double value);
+            bool success_e = str_e.TryParse(out double value_e);
+
+            Debug.Log("parse str = '" + str + "', try = " + success.ToString() + ", value = " + value.ToString());
+
+            if (!this.EqualsDouble(value, value_e, 1.0e-14, out double rel_diff) || success != success_e)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. i = " + i.ToString() + " string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
+                             + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
+                             + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "], rel_diff = " + rel_diff.ToString());
+            }
+        }
+        if (!test_pass)
+        {
+            Debug.LogError("the boundary value check was failure");
+        }
+
+        Debug.Log("random value check");
+        test_pass = true;
+        this.GenerateRandomFloatStrings(n_numeric_string, 2, 18, 309, 64);
+
+        int int_count = 0;
+        for (int i = 0; i < n_numeric_string; i++)
+        {
+            string str = str_list[i];
+            ReadOnlyStringEntity str_e = str_native[i];
+
+            bool success = double.TryParse(str, out double value);
+            bool success_e = str_e.TryParse(out double value_e);
+
+            if (!this.EqualsDouble(value, value_e, 1.0e-14, out double rel_diff) || success != success_e)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse i = " + i.ToString() + " string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
+                             + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
+                             + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "], rel_diff = " + rel_diff.ToString());
+            }
+            if (success) int_count++;
+        }
+        Debug.Log("parsed int count = " + int_count.ToString() + " / " + n_numeric_string.ToString());
+        if (!test_pass)
+        {
+            Debug.LogError("the random value check was failure");
+        }
     }
     void Test_ParseHex_String()
     {
@@ -555,7 +728,7 @@ public class Test_NativeStringList : MonoBehaviour
     }
     void GenerateRandomIntStrings(int n_str, int most_significant_digit, int digit_len, int fail_factor)
     {
-        if (digit_len <= 4 || fail_factor < 1)
+        if (most_significant_digit < 1 || digit_len <= 4 || fail_factor < 1)
         {
             Debug.LogError("cannot perform GenerateRandomIntStrings");
             return;
@@ -564,42 +737,149 @@ public class Test_NativeStringList : MonoBehaviour
         str_list.Clear();
         str_native.Clear();
 
+        int insert_count = 0;
+        bool x_inserted = false;
+
+        char[] exclude_c_list = new char[] { ' ' };
+
         for (int ii = 0; ii < n_str; ii++)
         {
+            insert_count = 0;
             string str = "";
 
-            if(random.Next(0, 2) == 0)
+            str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+            if (x_inserted) insert_count++;
+
+            if (random.Next(0, 2) == 0)
             {
                 str += '-';
             }
 
+            str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+            if (x_inserted) insert_count++;
+
             str += random.Next(0, most_significant_digit + 1).ToString();
 
             int len = random.Next(digit_len - 4, digit_len);
+
             for(int jj=0; jj<len; jj++)
             {
-                if (random.Next(0, fail_factor) == 0) 
+                str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+                if (x_inserted) insert_count++;
+
+                str += random.Next(0, 10).ToString();
+            }
+
+            str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+            if (x_inserted) insert_count++;
+
+            if (insert_count + len > digit_len)
+            {
+                // remake
+                ii--;
+            }
+            else
+            {
+                str_list.Add(str);
+                str_native.Add(str);
+            }
+        }
+    }
+    void GenerateRandomFloatStrings(int n_str, int most_significant_digit, int digit_len, int exp_range, int fail_factor)
+    {
+        if (most_significant_digit < 1 || digit_len <= 4 || exp_range < 1 || fail_factor < 1)
+        {
+            Debug.LogError("cannot perform GenerateRandomIntStrings");
+            return;
+        }
+
+        str_list.Clear();
+        str_native.Clear();
+
+        int insert_count = 0;
+        bool x_inserted = false;
+
+        char[] exclude_c_list = new char[] { ' ', ',' };
+
+        for (int ii = 0; ii < n_str; ii++)
+        {
+            insert_count = 0;
+            string str = "";
+
+            str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+            if (x_inserted) insert_count++;
+
+            if (random.Next(0, 2) == 0)
+            {
+                str += '-';
+            }
+
+            str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+            if (x_inserted) insert_count++;
+
+            str += random.Next(0, most_significant_digit + 1).ToString();
+
+            int len = random.Next(digit_len - 4, digit_len) + 1;
+            int dot_pos = random.Next(1, len);
+
+            // mantissa part
+            for (int jj = 0; jj < len; jj++)
+            {
+                if(jj == dot_pos)
                 {
-                    char c = (char)random.Next(33, 127);  // ASCII char code: [32~126], 32 is space.
-                    str += c;
+                    str += ".";
                 }
-                else
+                else 
                 {
                     str += random.Next(0, 10).ToString();
                 }
+
+                str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+                if (x_inserted) insert_count++;
             }
 
-            str_list.Add(str);
-            str_native.Add(str);
+            // exp part
+            if(random.Next(0, 2) == 0)
+            {
+                str += 'e';
+            }
+            else
+            {
+                str += 'E';
+            }
+
+            str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+
+            if (random.Next(0, 2) == 0)
+            {
+                str += '-';
+            }
+            else
+            {
+                str += '+';
+            }
+
+            str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+
+            str += random.Next(0, exp_range).ToString("D3");
+
+            str = this.InsertFailChar(str, fail_factor, exclude_c_list, out x_inserted);
+
+            if (insert_count + len > digit_len)
+            {
+                // remake
+                ii--;
+            }
+            else
+            {
+                str_list.Add(str);
+                str_native.Add(str);
+            }
         }
     }
-    void GenerateRandomFloatStrings(bool exp_camel_mark)
+    void GenerateRandomHex_Strings(int n_str, int max_hex_len, bool add_header)
     {
-
-    }
-    void GenerateRandomHex_Strings(int max_hex_len, bool add_header)
-    {
-        if (n_numeric_string <= 0) return;
+        if (n_str <= 0) return;
         str_native.Clear();
         str_list.Clear();
 
@@ -640,5 +920,72 @@ public class Test_NativeStringList : MonoBehaviour
             this.str_native.Add(str);
             this.str_list.Add(str);
         }
+    }
+
+    string InsertFailChar(string tgt, int fail_factor, char[] exclude_list, out bool inserted)
+    {
+        inserted = false;
+        char c = 'z';
+        if (random.Next(0, fail_factor) == 0)
+        {
+            //char c = (char)random.Next(33, 127);  // ASCII char code: [32~126], 32 is space.
+            int i_try = 0;
+            while(i_try < 10000)
+            {
+                i_try++;
+                bool is_ex_char = false;
+
+                c = (char)random.Next(33, 127);  // ASCII char code: [32~126], 32 is space.
+                foreach(char ex in exclude_list)
+                {
+                    if(c == ex)
+                    {
+                        is_ex_char = true;
+                        break;
+                    }
+                }
+
+                if (!is_ex_char) break; 
+            }
+            
+            inserted = true;
+            return tgt += c;
+        }
+        return tgt;
+    }
+
+    private bool EqualsFloat(float a, float b, float rel_err, out float rel_diff)
+    {
+        rel_diff = 0.0f;
+        float diff = a - b;
+        if (diff == 0.0f) return true;
+
+        if(a != 0.0f)
+        {
+            rel_diff = diff / a;
+        }
+        else
+        {
+            rel_diff = diff / b;
+        }
+        if (math.abs(rel_diff) < rel_err) return true;
+        return false;
+    }
+    private bool EqualsDouble(double a, double b, double rel_err, out double rel_diff)
+    {
+        rel_diff = 0.0;
+        double diff = a - b;
+        if (diff == 0.0) return true;
+
+        if (a != 0.0)
+        {
+            rel_diff = diff / a;
+        }
+        else
+        {
+            rel_diff = diff / b;
+        }
+        if (math.abs(rel_diff) < rel_err) return true;
+        return false;
     }
 }
