@@ -765,30 +765,53 @@ namespace NativeStringCollections
         }
         private static bool TryParseHex64(this IParseExt value, out ulong buf, Endian endian)
         {
-            const int max_digits = 16;  // accepts max 16 digits (4bit * 16)
+            const int n_digits = 16;  // accepts 16 digits set (4bit * 16)
 
             int i_start = 0;
+            buf = 0;
+
             if (value[1] == 'x' && value[0] == '0') i_start = 2;
 
-            if (value.Length - i_start > max_digits)
+            if (value.Length - i_start != n_digits)
             {
-                buf = 0;
                 return false;
             }
 
-            buf = 0;
-            for (int i = i_start; i < value.Length; i++)
+            if (endian == Endian.Big)
             {
-                if (value[i].IsHex(out uint h))
+                for (int i = i_start; i < value.Length; i++)
                 {
-                    buf = (buf << 4) | h;
-                }
-                else
-                {
-                    buf = 0;
-                    return false;
+                    if (value[i].IsHex(out uint h))
+                    {
+                        buf = (buf << 4) | h;
+                    }
+                    else
+                    {
+                        return false;
+                    }
                 }
             }
+            else if (endian == Endian.Little)
+            {
+                int n_byte = value.Length / 2;
+                int i_last = i_start / 2;
+                for (int i = n_byte - 1; i >= i_last; i--)
+                {
+                    char c0 = value[2 * i];
+                    char c1 = value[2 * i + 1];
+
+                    if (c0.IsHex(out uint h0) && c1.IsHex(out uint h1))
+                    {
+                        buf = (buf << 4) | h0;
+                        buf = (buf << 4) | h1;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+
             return true;
         }
     }

@@ -666,6 +666,7 @@ public class Test_NativeStringList : MonoBehaviour
         NativeStringList str_native_lit = new NativeStringList();
 
         // int hex
+        Debug.Log("  >>>> hex convertion test for Int32 >>>>");
         int[] int_list = new int[] { 0, 128, 512, 10000, -12345678, -2147483648, 2147483647 };
 
         str_native_big.Clear();
@@ -712,10 +713,153 @@ public class Test_NativeStringList : MonoBehaviour
         }
 
         // long hex
+        Debug.Log("  >>>> hex convertion test for Int64 >>>>");
+        long[] long_list = new long[] { 0, 128, 512, 10000, -12345678, -9223372036854775808, 9223372036854775807 };
+
+        str_native_big.Clear();
+        str_native_lit.Clear();
+        test_pass = true;
+
+        for (int i = 0; i < long_list.Length; i++)
+        {
+            long long_v = long_list[i];
+            byte[] bytes = BitConverter.GetBytes(long_v);
+            string str = BitConverter.ToString(bytes).Replace("-", "");  // BitConverter returns little endian code on x86.
+            string str_0x = "0x" + str;
+
+            str_native_lit.Add(str);
+            str_native_lit.Add(str_0x);
+            str_native_big.Add(this.ConvertEndian(str));
+            str_native_big.Add(this.ConvertEndian(str_0x));
+        }
+        for (int i = 0; i < str_native_lit.Length; i++)
+        {
+            long value_ref = long_list[i / 2];
+            ReadOnlyStringEntity str_lit = str_native_lit[i];
+            ReadOnlyStringEntity str_big = str_native_big[i];
+
+            bool success_lit = str_lit.TryParseHex(out long value_lit, Endian.Little);
+            bool success_big = str_big.TryParseHex(out long value_big);
+
+            Debug.Log("parse str[big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
+                    + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
+                    + "], value[ref/big/little] = [" + value_ref.ToString() + "/" + value_big.ToString() + "/" + value_lit.ToString() + "]");
+
+            if ((value_ref != value_lit || value_ref != value_big) || success_lit != success_big)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. i = " + i.ToString()
+                    + " string [big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
+                    + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
+                    + "], value[ref/big/little] = [" + value_ref.ToString() + "/" + value_big.ToString() + "/" + value_lit.ToString() + "]");
+            }
+        }
+        if (!test_pass)
+        {
+            Debug.LogError("the hex decode test for int was failure");
+        }
 
         // float hex
+        Debug.Log("  >>>> hex convertion test for float >>>>");
+        float[] float_list = new float[] { 0.0f, 128.0f, 512.0f, 12345.67f, -12345678f, -3.40281e+38f, 3.40281E+38f };
+
+        str_native_big.Clear();
+        str_native_lit.Clear();
+        test_pass = true;
+
+        for (int i = 0; i < float_list.Length; i++)
+        {
+            float float_v = float_list[i];
+            byte[] bytes = BitConverter.GetBytes(float_v);
+            string str = BitConverter.ToString(bytes).Replace("-", "");  // BitConverter returns little endian code on x86.
+            string str_0x = "0x" + str;
+
+            str_native_lit.Add(str);
+            str_native_lit.Add(str_0x);
+            str_native_big.Add(this.ConvertEndian(str));
+            str_native_big.Add(this.ConvertEndian(str_0x));
+        }
+        for (int i = 0; i < str_native_lit.Length; i++)
+        {
+            float value_ref = float_list[i / 2];
+            ReadOnlyStringEntity str_lit = str_native_lit[i];
+            ReadOnlyStringEntity str_big = str_native_big[i];
+
+            bool success_lit = str_lit.TryParseHex(out float value_lit, Endian.Little);
+            bool success_big = str_big.TryParseHex(out float value_big);
+
+            Debug.Log("parse str[big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
+                    + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
+                    + "], value[ref/big/little] = [" + value_ref.ToString() + "/" + value_big.ToString() + "/" + value_lit.ToString() + "]");
+
+            // must be bit-complete convertion in hex data format
+            if ((value_ref != value_lit || value_ref != value_big) || success_lit != success_big)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. i = " + i.ToString()
+                    + " string [big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
+                    + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
+                    + "], value[ref/big/little] = [" + value_ref.ToString() + "/" + value_big.ToString() + "/" + value_lit.ToString() + "]");
+            }
+        }
+        if (!test_pass)
+        {
+            Debug.LogError("the hex decode test for int was failure");
+        }
 
         // double hex
+        Debug.Log("  >>>> hex convertion test for double >>>>");
+        double[] double_list = new double[]
+        {
+            0.0, 128.0, 512.0, 12345.67, -12345678,
+            -9223372036854775808d, 9223372036854775807d,
+            -3.40281e+38, 3.40281E+38,
+            -1.797693134862e+308, 1.797693134862E+308
+        };
+
+        str_native_big.Clear();
+        str_native_lit.Clear();
+        test_pass = true;
+
+        for (int i = 0; i < double_list.Length; i++)
+        {
+            double double_v = double_list[i];
+            byte[] bytes = BitConverter.GetBytes(double_v);
+            string str = BitConverter.ToString(bytes).Replace("-", "");  // BitConverter returns little endian code on x86.
+            string str_0x = "0x" + str;
+
+            str_native_lit.Add(str);
+            str_native_lit.Add(str_0x);
+            str_native_big.Add(this.ConvertEndian(str));
+            str_native_big.Add(this.ConvertEndian(str_0x));
+        }
+        for (int i = 0; i < str_native_lit.Length; i++)
+        {
+            double value_ref = double_list[i / 2];
+            ReadOnlyStringEntity str_lit = str_native_lit[i];
+            ReadOnlyStringEntity str_big = str_native_big[i];
+
+            bool success_lit = str_lit.TryParseHex(out double value_lit, Endian.Little);
+            bool success_big = str_big.TryParseHex(out double value_big);
+
+            Debug.Log("parse str[big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
+                    + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
+                    + "], value[ref/big/little] = [" + value_ref.ToString() + "/" + value_big.ToString() + "/" + value_lit.ToString() + "]");
+
+            // must be bit-complete convertion in hex data format
+            if ((value_ref != value_lit || value_ref != value_big) || success_lit != success_big)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. i = " + i.ToString()
+                    + " string [big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
+                    + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
+                    + "], value[ref/big/little] = [" + value_ref.ToString() + "/" + value_big.ToString() + "/" + value_lit.ToString() + "]");
+            }
+        }
+        if (!test_pass)
+        {
+            Debug.LogError("the hex decode test for int was failure");
+        }
 
 
         str_native_big.Dispose();
