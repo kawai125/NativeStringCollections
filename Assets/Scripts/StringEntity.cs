@@ -356,6 +356,12 @@ namespace NativeStringCollections
         }
     }
 
+    public enum Endian
+    {
+        Big,
+        Little,
+    }
+
     public static class StringEntityExtentions
     {
         /// <summary>
@@ -653,9 +659,9 @@ namespace NativeStringCollections
             return true;
         }
 
-        unsafe public static bool TryParseHex(this IParseExt value, out int result)
+        unsafe public static bool TryParseHex(this IParseExt value, out int result, Endian endian = Endian.Big)
         {
-            if (value.TryParseHex32(out uint buf))
+            if (value.TryParseHex32(out uint buf, endian))
             {
                 result = *(int*)&buf;
                 return true;
@@ -666,9 +672,9 @@ namespace NativeStringCollections
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this IParseExt value, out long result)
+        unsafe public static bool TryParseHex(this IParseExt value, out long result, Endian endian = Endian.Big)
         {
-            if (value.TryParseHex64(out ulong buf))
+            if (value.TryParseHex64(out ulong buf, endian))
             {
                 result = *(long*)&buf;
                 return true;
@@ -679,9 +685,9 @@ namespace NativeStringCollections
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this IParseExt value, out float result)
+        unsafe public static bool TryParseHex(this IParseExt value, out float result, Endian endian = Endian.Big)
         {
-            if (value.TryParseHex32(out uint buf))
+            if (value.TryParseHex32(out uint buf, endian))
             {
                 result = *(float*)&buf;
                 return true;
@@ -692,9 +698,9 @@ namespace NativeStringCollections
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this IParseExt value, out double result)
+        unsafe public static bool TryParseHex(this IParseExt value, out double result, Endian endian = Endian.Big)
         {
-            if (value.TryParseHex64(out ulong buf))
+            if (value.TryParseHex64(out ulong buf, endian))
             {
                 result = *(double*)&buf;
                 return true;
@@ -706,35 +712,58 @@ namespace NativeStringCollections
             }
         }
 
-        private static bool TryParseHex32(this IParseExt value, out uint buf)
+        private static bool TryParseHex32(this IParseExt value, out uint buf, Endian endian)
         {
-            const int max_digits = 8;  // accepts max 8 digits (4bit * 8)
+            const int n_digits = 8;  // accepts 8 digits set (4bit * 8)
 
             int i_start = 0;
+            buf = 0;
+
             if (value[1] == 'x' && value[0] == '0') i_start = 2;
 
-            if (value.Length - i_start > max_digits)
+            if (value.Length - i_start != n_digits)
             {
-                buf = 0;
                 return false;
             }
 
-            buf = 0;
-            for (int i = i_start; i < value.Length; i++)
+            if(endian == Endian.Big)
             {
-                if (value[i].IsHex(out uint h))
+                for (int i = i_start; i < value.Length; i++)
                 {
-                    buf = (buf << 4) | h;
-                }
-                else
-                {
-                    buf = 0;
-                    return false;
+                    if (value[i].IsHex(out uint h))
+                    {
+                        buf = (buf << 4) | h;
+                    }
+                    else
+                    {
+                        return false;
+                    }
                 }
             }
+            else if(endian == Endian.Little)
+            {
+                int n_byte = value.Length / 2;
+                int i_last = i_start / 2;
+                for(int i = n_byte - 1; i>=i_last; i--)
+                {
+                    char c0 = value[2 * i];
+                    char c1 = value[2 * i + 1];
+
+                    if(c0.IsHex(out uint h0) && c1.IsHex(out uint h1))
+                    {
+                        buf = (buf << 4) | h0;
+                        buf = (buf << 4) | h1;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+
             return true;
         }
-        private static bool TryParseHex64(this IParseExt value, out ulong buf)
+        private static bool TryParseHex64(this IParseExt value, out ulong buf, Endian endian)
         {
             const int max_digits = 16;  // accepts max 16 digits (4bit * 16)
 

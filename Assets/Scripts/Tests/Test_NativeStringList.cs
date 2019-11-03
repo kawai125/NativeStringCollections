@@ -70,17 +70,18 @@ public class Test_NativeStringList : MonoBehaviour
         this.Test_RemoveRange("RemoveRange()");
         this.Test_Collection("after Test_RemoveRange()");
     }
-    public void OnClickParseStringTest()
+    public void OnClickParseIntStringTest()
     {
-        //--- parse int
         this.Test_ParseInt32_String();
         this.Test_ParseInt64_String();
-
-        //--- parse float
+    }
+    public void OnClickParseFloatStringTest()
+    {
         this.Test_ParseFloat32_String();
         this.Test_ParseFloat64_String();
-
-        //--- parse hex
+    }
+    public void OnClickParseHexStringTest()
+    {
         this.Test_ParseHex_String();
     }
     public void OnClickReallocateTraceTest()
@@ -658,7 +659,67 @@ public class Test_NativeStringList : MonoBehaviour
     }
     void Test_ParseHex_String()
     {
+        Debug.Log("== Parse Hex format string test ==");
+        bool test_pass;
 
+        NativeStringList str_native_big = new NativeStringList();
+        NativeStringList str_native_lit = new NativeStringList();
+
+        // int hex
+        int[] int_list = new int[] { 0, 128, 512, 10000, -12345678, -2147483648, 2147483647 };
+
+        str_native_big.Clear();
+        str_native_lit.Clear();
+        test_pass = true;
+
+        for(int i=0; i<int_list.Length; i++)
+        {
+            int int_v = int_list[i];
+            byte[] bytes = BitConverter.GetBytes(int_v);
+            string str = BitConverter.ToString(bytes).Replace("-", "");  // BitConverter returns little endian code on x86.
+            string str_0x = "0x" + str;
+
+            str_native_lit.Add(str);
+            str_native_lit.Add(str_0x);
+            str_native_big.Add(this.ConvertEndian(str));
+            str_native_big.Add(this.ConvertEndian(str_0x));
+        }
+        for (int i = 0; i < str_native_lit.Length; i++)
+        {
+            int value_ref = int_list[i/2];
+            ReadOnlyStringEntity str_lit = str_native_lit[i];
+            ReadOnlyStringEntity str_big = str_native_big[i];
+
+            bool success_lit = str_lit.TryParseHex(out int value_lit, Endian.Little);
+            bool success_big = str_big.TryParseHex(out int value_big);
+
+            Debug.Log("parse str[big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
+                    + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
+                    + "], value[ref/big/little] = [" + value_ref.ToString() + "/" + value_big.ToString() + "/" + value_lit.ToString() + "]" );
+
+            if ( (value_ref != value_lit || value_ref != value_big) || success_lit != success_big)
+            {
+                test_pass = false;
+                Debug.LogError("failed to parse. i = " + i.ToString()
+                    + " string [big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
+                    + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
+                    + "], value[ref/big/little] = [" + value_ref.ToString() + "/" + value_big.ToString() + "/" + value_lit.ToString() + "]");
+            }
+        }
+        if (!test_pass)
+        {
+            Debug.LogError("the hex decode test for int was failure");
+        }
+
+        // long hex
+
+        // float hex
+
+        // double hex
+
+
+        str_native_big.Dispose();
+        str_native_lit.Dispose();
     }
 
     void GenerateNumberedStrings()
@@ -967,6 +1028,32 @@ public class Test_NativeStringList : MonoBehaviour
             return tgt += c;
         }
         return tgt;
+    }
+    string ConvertEndian(string value)
+    {
+        if(value.Length < 8 || value.Length % 2 != 0)
+        {
+            throw new InvalidOperationException("this is not hex value. value = " + value);
+        }
+
+        int i_start = 0;
+        if (value[0] == '0' && value[1] == 'x') i_start = 2;
+
+        string result = "";
+        if (i_start != 0) result = "0x";
+
+        int n_byte = value.Length / 2;
+        int j_last = i_start / 2;
+        for (int i = n_byte - 1; i >= j_last; i--)
+        {
+            char c0 = value[2 * i];
+            char c1 = value[2 * i + 1];
+
+            result += c0;
+            result += c1;
+        }
+
+        return result;
     }
 
     private bool EqualsFloat(float a, float b, float rel_err, out float rel_diff)
