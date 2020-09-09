@@ -1,4 +1,4 @@
-﻿
+﻿// enable the below macro to enable reallocation trace for debug.
 //#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
 
 using System;
@@ -11,6 +11,7 @@ using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
+
 namespace NativeStringCollections
 {
     using NativeStringCollections.Impl;
@@ -22,8 +23,10 @@ namespace NativeStringCollections
         int Length { get; }
         int End { get; }
         char this[int index] { get; }
+        bool EqualsStringEntity(IStringEntityBase entityBase);
         bool EqualsStringEntity(char* ptr, int Start, int Length);
         bool Equals(IStringEntityBase entityBase);
+        bool Equals(char* ptr, int Length);
     }
 
     public interface IParseExt
@@ -117,13 +120,32 @@ namespace NativeStringCollections
         {
             this.CheckReallocate();
             if (this.Length != Length) return false;
-            if(this.root_ptr == ptr && this.Start == Start) return true;
+
+            // pointing same target
+            if (this.root_ptr == ptr && this.Start == Start) return true;
+
             return true;
+        }
+        public bool EqualsStringEntity(IStringEntityBase entity)
+        {
+            return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length);
         }
         public bool Equals(IStringEntityBase entity)
         {
             this.CheckReallocate();
-            return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length);
+            return entity.Equals(this.root_ptr + this.Start, this.Length);
+        }
+        public bool Equals(char* ptr, int Length)
+        {
+            this.CheckReallocate();
+            if (this.Length != Length) return false;
+
+            for (int i = 0; i < Length; i++)
+            {
+                if (this.root_ptr[this.Start + i] != ptr[i]) return false;
+            }
+
+            return true;
         }
         public bool Equals(string str)
         {
@@ -272,13 +294,32 @@ namespace NativeStringCollections
         {
             this.CheckReallocate();
             if (this.Length != Length) return false;
+
+            // pointing same target
             if (this.root_ptr == ptr && this.Start == Start) return true;
+
             return true;
+        }
+        public bool EqualsStringEntity(IStringEntityBase entity)
+        {
+            return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length);
         }
         public bool Equals(IStringEntityBase entity)
         {
             this.CheckReallocate();
-            return entity.EqualsStringEntity(this.root_ptr, this.Start, this.Length);
+            return entity.Equals(this.root_ptr + this.Start, this.Length);
+        }
+        public bool Equals(char* ptr, int Length)
+        {
+            this.CheckReallocate();
+            if (this.Length != Length) return false;
+
+            for (int i = 0; i < Length; i++)
+            {
+                if (this.root_ptr[this.Start + i] != ptr[i]) return false;
+            }
+
+            return true;
         }
         public bool Equals(string str)
         {
@@ -512,7 +553,7 @@ namespace NativeStringCollections
             return true;
         }
         /// <summary>
-        /// Try to parse StringEntity to double. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# float.TryParse()).
+        /// Try to parse StringEntity to float. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# float.TryParse()).
         /// Use TryParseHex(out T) for hex data.
         /// </summary>
         public static bool TryParse(this IParseExt value, out float result)
@@ -813,6 +854,35 @@ namespace NativeStringCollections
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Check the value is integral value or not.
+        /// </summary>
+        public static bool IsIntegral(this IParseExt value)
+        {
+            return value.TryParse(out long dummy);
+        }
+        /// <summary>
+        /// Check the value is numeric value or not.
+        /// </summary>
+        public static bool IsNumeric(this IParseExt value)
+        {
+            return value.TryParse(out double dummy);
+        }
+        /// <summary>
+        /// Check the value is 32bit hex data or not.
+        /// </summary>
+        public static bool IsHex32(this IParseExt value)
+        {
+            return value.TryParseHex32(out uint dummy, Endian.Little);
+        }
+        /// <summary>
+        /// Check the value is 64bit hex data or not.
+        /// </summary>
+        public static bool IsHex64(this IParseExt value)
+        {
+            return value.TryParseHex64(out ulong dummy, Endian.Little);
         }
     }
 

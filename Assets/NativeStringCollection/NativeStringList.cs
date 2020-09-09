@@ -1,13 +1,11 @@
-﻿
+﻿// enable the below macro to enable reallocation trace for debug.
 //#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
 
 using System;
-using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
@@ -15,33 +13,38 @@ namespace NativeStringCollections
 {
     using NativeStringCollections.Impl;
 
-
-    public class NativeStringList : IDisposable, IEnumerable<StringEntity>
+    [NativeContainer]
+    public struct NativeStringList : IDisposable, IEnumerable<StringEntity>
     {
         private NativeList<char> char_arr;
         private NativeList<ElemIndex> elemIndexList;
 
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
         private NativeArray<ulong> genTrace;
         private ulong genSignature;
+#endif
 
-        private bool allocated = false;
+        private bool allocated;
 
-        unsafe private void Init(int char_array_size, int elem_size, Allocator alloc)
+        public unsafe NativeStringList(Allocator alloc)
         {
-            this.char_arr = new NativeList<char>(char_array_size, alloc);
-            this.elemIndexList = new NativeList<ElemIndex>(elem_size, alloc);
+            char_arr = new NativeList<char>(alloc);
+            elemIndexList = new NativeList<ElemIndex>(alloc);
 
-            this.genTrace = new NativeArray<ulong>(1, Allocator.Persistent);
-            this.genSignature = this.GetGenSigneture();
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+            genTrace = new NativeArray<ulong>(1, alloc);
+            genSignature = (ulong)char_arr.GetUnsafePtr();
+#endif
 
-            this.allocated = true;
+            allocated = true;
         }
+
         public void Dispose()
         {
             this.Dispose(true);
             GC.SuppressFinalize(this);
         }
-        protected virtual void Dispose(bool disposing)
+        public void Dispose(bool disposing)
         {
             // disposing managed resource
             if (disposing)
@@ -53,39 +56,17 @@ namespace NativeStringCollections
             {
                 this.char_arr.Dispose();
                 this.elemIndexList.Dispose();
+
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
                 this.genTrace.Dispose();
+                this.genSignature = 0;
+#endif
 
                 this.allocated = false;
             }
         }
-        ~NativeStringList()
-        {
-            this.Dispose(false);
-        }
 
         public bool IsCreated { get { return this.allocated; } }
-
-        /// <summary>
-        /// The constructor
-        /// </summary>
-        public NativeStringList(int char_array_size, int elem_size, Allocator alloc)
-        {
-            this.Init(char_array_size, elem_size, alloc);
-        }
-        /// <summary>
-        /// Construct with Allocator.Persistent
-        /// </summary>
-        public NativeStringList(int char_array_size, int elem_size)
-        {
-            this.Init(char_array_size, elem_size, Allocator.Persistent);
-        }
-        /// <summary>
-        /// Construct with char_array_size = 8, elem_size = 2, Allocator.Persistent
-        /// </summary>
-        public NativeStringList()
-        {
-            this.Init(8, 2, Allocator.Persistent);
-        }
 
         public void Clear()
         {
@@ -117,7 +98,9 @@ namespace NativeStringCollections
                 this.char_arr.Dispose();
                 this.char_arr = tmp;
 
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
                 this.UpdateSignature();
+#endif
             }
         }
         public int IndexCapacity
@@ -217,15 +200,13 @@ namespace NativeStringCollections
         }
 
         /// <summary>
-        /// Get the index of the entity. This means "is the entity points effective area.", cannot guarantee the consistency of pointing content.
-        /// Use 'IndexOf(string key)' API for check contents.
+        /// Get the index of the entity.
         /// </summary>
         /// <param name="key">entity</param>
         /// <returns>index or -1 (not found)</returns>
         unsafe public int IndexOf(IStringEntityBase key)
         {
             if (this.elemIndexList.Length < 1) return -1;
-            if (!key.EqualsStringEntity((char*)this.char_arr.GetUnsafePtr(), key.Start, key.Length)) return -1;
 
             int left = 0;
             int right = this.elemIndexList.Length - 1;
@@ -337,7 +318,9 @@ namespace NativeStringCollections
                 this.char_arr.RemoveAtSwapBack(this.char_arr.Length - 1);
             }
 
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
             if (gap > 0) this.NextGen();
+#endif
         }
         /// <summary>
         /// Shrink internal buffer size to fit present data length.
@@ -348,7 +331,9 @@ namespace NativeStringCollections
             this.char_arr.ResizeUninitialized( this.char_arr.Length );
             this.elemIndexList.ResizeUninitialized( this.elemIndexList.Length );
 
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
             this.UpdateSignature();
+#endif
         }
 
         private void CheckElemIndex(int index)
@@ -358,6 +343,8 @@ namespace NativeStringCollections
                 throw new IndexOutOfRangeException("index = " + index.ToString() + ", must be in range of [0~" + (this.Length - 1).ToString() + "].");
             }
         }
+
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
         unsafe private void UpdateSignature()
         {
             ulong now_sig = GetGenSigneture();
@@ -372,9 +359,10 @@ namespace NativeStringCollections
             ulong now_gen = this.genTrace[0];
             this.genTrace[0] = now_gen + 1;
         }
-        private ulong GetGen() { return this.genTrace[0]; }
-        unsafe private ulong* GetGenPtr() { return (ulong*)this.genTrace.GetUnsafeReadOnlyPtr(); }
         unsafe private ulong GetGenSigneture() { return (ulong)this.char_arr.GetUnsafePtr(); }
+        private ulong GetGen() { return this.genTrace[0]; }
+        unsafe private ulong* GetGenPtr() { return (ulong*)this.genTrace.GetUnsafePtr(); }
+#endif
     }
 
 
