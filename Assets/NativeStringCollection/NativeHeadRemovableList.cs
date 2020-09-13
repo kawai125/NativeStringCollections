@@ -7,24 +7,23 @@ using Unity.Collections.LowLevel.Unsafe;
 
 namespace NativeStringCollections.Impl
 {
-    [NativeContainer]
-    public struct NativeHeadRemovableList<T> : IDisposable where T : struct
+    using NativeStringCollections.Utility;
+
+    internal struct NativeHeadRemovableList<T> : IDisposable where T : struct
     {
         private NativeList<T> _list;
-        private int _start;
-        private bool _allocated;
+        private PtrHandle<int> _start;
 
         public NativeHeadRemovableList(Allocator alloc)
         {
-            _list = new NativeList<T>(0, alloc);
-            _start = 0;
-            _allocated = true;
+            _list = new NativeList<T>(8, alloc);
+            _list.Clear();
+            _start = new PtrHandle<int>(0, alloc);
         }
         public NativeHeadRemovableList(int size, Allocator alloc)
         {
             _list = new NativeList<T>(size, alloc);
-            _start = 0;
-            _allocated = true;
+            _start = new PtrHandle<int>(0, alloc);
         }
 
         public int Capacity
@@ -33,13 +32,13 @@ namespace NativeStringCollections.Impl
             set
             {
                 // Length check
-                if (value < Length) throw new ArgumentOutOfRangeException("the Capacity must be > Length = " + Length.ToString());
+                if (value < Length) throw new ArgumentOutOfRangeException("the Capacity must be > Length.");
 
                 this.Shrink();
                 _list.Capacity = value;
             }
         }
-        public bool IsCreated { get { return _allocated; } }
+        public bool IsCreated { get { return _list.IsCreated; } }
         public T this[int index]
         {
             get { return _list[_start + index]; }
@@ -54,7 +53,7 @@ namespace NativeStringCollections.Impl
         public void Clear()
         {
             _list.Clear();
-            _start = 0;
+            _start.Value = 0;
         }
         public void CopyFrom(T[] array) { _list.CopyFrom(array); }
 
@@ -71,11 +70,10 @@ namespace NativeStringCollections.Impl
 
             }
             // disposing unmanaged resource
-            if (_allocated)
+            if (_list.IsCreated)
             {
                 _list.Dispose();
-
-                _allocated = false;
+                _start.Dispose();
             }
         }
 
@@ -86,9 +84,26 @@ namespace NativeStringCollections.Impl
 
         public void RemoveHead(int count = 1)
         {
-            if (count < 1 || Length < count) throw new ArgumentOutOfRangeException("the count must be in the range of [1," + Length.ToString() + ")");
+            if (count < 1 || Length < count) throw new ArgumentOutOfRangeException("invalid length of remove target.");
 
-            _start += count;
+            _start.Value += count;
+        }
+        public unsafe void InsertHead(void* ptr, int Length)
+        {
+            if (Length <= 0) throw new ArgumentOutOfRangeException("invalid size");
+
+            // slide internal data
+            int len_internal = this.Length;
+            this.ResizeUninitialized(Length + len_internal);
+            int typeSize = Unsafe.SizeOf<T>();
+            byte* source = (byte*)_list.GetUnsafePtr();
+            byte* dest = source + typeSize * Length;
+            UnsafeUtility.MemMove((void*)dest, (void*)source, len_internal);
+
+            // insert data
+            source = (byte*)ptr;
+            dest = (byte*)_list.GetUnsafePtr();
+            UnsafeUtility.MemCpy((void*)dest, (void*)source, Length);
         }
 
         public void ResizeUninitialized(int length)
@@ -125,7 +140,7 @@ namespace NativeStringCollections.Impl
             {
                 _list.Clear();
             }
-            _start = 0;
+            _start.Value = 0;
         }
 
         public unsafe void* GetUnsafePtr()

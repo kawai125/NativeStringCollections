@@ -1,12 +1,14 @@
-﻿using System;
+﻿// enable the below macro to enable reallocation trace for debug.
+//#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+
+using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.Profiling;
-using Unity.Mathematics;
+using System.Runtime.InteropServices;
 
+using Unity.Mathematics;
 using Unity.Collections;
-//using Unity.IO.LowLevel.Unsafe;
 using Unity.Collections.LowLevel.Unsafe;
 
 
@@ -14,386 +16,566 @@ namespace NativeStringCollections
 {
     using NativeStringCollections.Impl;
 
-    public class StringParser : IDisposable, IEnumerable<LineEntity>
+
+    public enum Endian
     {
-        private NativeStringList buffer;
-        private NativeList<ReadOnlyStringEntity> entityList;
+        Big,
+        Little,
+    }
 
-        private NativeList<LineIndex> lineIndexList;
+    public interface IParseExt
+    {
+        int Length { get; }
+        char this[int i] { get; }
+    }
 
-        private NativeStringList elemDelim;
-        private NativeList<char> inputBuffer;
-        private int now_pos;
-
-        private bool allocated;
-
-        public void Dispose()
+    public static class StringParserExt
+    {
+        /// <summary>
+        /// Try to parse StringEntity to bool. Cannot accept whitespaces (this is differ from official C# bool.TryParse()).
+        /// </summary>
+        public static bool TryParse(this IParseExt value, out bool result)
         {
-            this.Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposing)
+            if (value.Length == 5)
             {
-
-            }
-            if (this.allocated)
-            {
-                this.buffer.Dispose();
-                this.entityList.Dispose();
-
-                this.lineIndexList.Dispose();
-
-                this.elemDelim.Dispose();
-                this.inputBuffer.Dispose();
-
-                this.allocated = false;
-            }
-        }
-
-        private void Init()
-        {
-            this.buffer = new NativeStringList(Allocator.Persistent);
-            this.entityList = new NativeList<ReadOnlyStringEntity>(Allocator.Persistent);
-
-            this.lineIndexList = new NativeList<LineIndex>(Allocator.Persistent);
-
-            this.elemDelim = new NativeStringList(Allocator.Persistent);
-            this.inputBuffer = new NativeList<char>(Allocator.Persistent);
-            this.now_pos = -1;
-
-            this.allocated = true;
-        }
-
-        public StringParser()
-        {
-            this.Init();
-        }
-        ~StringParser()
-        {
-            this.Dispose(false);
-        }
-
-        public StringParser(string file_path, System.Text.Encoding encoding, IReadOnlyList<string> str_delims)
-        {
-            this.Init();
-            this.Delim = str_delims;
-            this.ReadFile(file_path, encoding);
-        }
-
-        public void ReadFile(string file_path, System.Text.Encoding encoding)
-        {
-            this.String = System.IO.File.ReadAllText(file_path, encoding);
-        }
-
-        public string String
-        {
-            set
-            {
-                Profiler.BeginSample(">>> load file into NativeStringList");
-
-                this.ParseAllText(value);
-
-                Profiler.EndSample();
-            }
-        }
-
-        public IReadOnlyList<string> Delim
-        {
-            set
-            {
-                this.elemDelim.Clear();
-                foreach (string delim in value)
+                // match "False", "false", or "FALSE"
+                if(value[0] == 'F')
                 {
-                    if(delim == null)
+                    if (value[1] == 'a' && value[2] == 'l' && value[3] == 's' && value[4] == 'e')
                     {
-                        string str = "";
-                        str += (char)0;
-                        this.elemDelim.Add( str );
+                        result = false;
+                        return true;
                     }
-                    else if(delim.Length > 0)
+                    else if (value[1] == 'A' && value[2] == 'L' && value[3] == 'S' && value[4] == 'E')
                     {
-                        this.elemDelim.Add(delim);
+                        result = false;
+                        return true;
                     }
                 }
-            }
-            get
-            {
-                var ret = new List<string>();
-                foreach(var itr in this.elemDelim)
+                else if (value[0] == 'f' && value[1] == 'a' && value[2] == 'l' && value[3] == 's' && value[4] == 'e')
                 {
-                    ret.Add(itr.ToString());
+                    result = false;
+                    return true;
                 }
-                return ret;
             }
-        }
-
-        public bool EndOfStream
-        {
-            get { return (this.now_pos < 0); }
-        }
-
-        //--- line enrity access
-        public int Length { get { return this.lineIndexList.Length; } }
-
-        unsafe public LineEntity this[int index]
-        {
-            get
+            else if (value.Length == 4)
             {
-                var lineIndex = this.lineIndexList[index];
-                return new LineEntity((ReadOnlyStringEntity*)this.entityList.GetUnsafeReadOnlyPtr(), lineIndex.Start, lineIndex.Length);
-            }
-        }
-        public LineEntity At(int i)
-        {
-            if (i < 0 || this.Length <= i)
-            {
-                throw new IndexOutOfRangeException("index = " + i.ToString() + ", must be in range of [0~" + (this.Length - 1).ToString() + "].");
-            }
-            return this[i];
-        }
-        public IEnumerator<LineEntity> GetEnumerator()
-        {
-            for (int i = 0; i < this.Length; i++)
-                yield return this[i];
-        }
-        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
-
-        //--- elem direct access
-        public int ElemLength { get { return this.buffer.Length; } }
-        public ReadOnlyStringEntity GetStringEntity(int index)
-        {
-            return this.buffer[index];
-        }
-        public string SubString(int index)
-        {
-            return this.buffer.SubString(index);
-        }
-
-        //unsafe public void ParseLine()
-        //{
-        //    if (this.EndOfStream)
-        //    {
-        //        throw new IndexOutOfRangeException("already reach to end of string.");
-        //    }
-        //
-        //    this.buffer.Clear();
-        //    this.entityList.Clear();
-        //    this.lineIndexList.Clear();
-        //
-        //    this.ParseLineImpl();
-        //}
-
-        public void ParseAllText(string value)
-        {
-            this.buffer.Clear();
-            this.lineIndexList.Clear();
-            this.now_pos = 0;
-
-            while (!this.EndOfStream)
-            {
-                this.ParseLineStringImpl(value);
-            }
-
-            // update entity list
-            this.entityList.Clear();
-            for (int i=0; i<this.buffer.Length; i++)
-            {
-                this.entityList.Add(this.buffer[i]);
-            }
-        }
-
-        unsafe private void ParseLineStringImpl(string value)
-        {
-            int line_start = math.max(this.buffer.Length - 1, 0);  // count by entity
-            int line_elem = 0;
-
-            int i_char = this.now_pos;
-
-            this.inputBuffer.Clear();
-            while (i_char < value.Length)
-            {
-                if (this.IsLineEnd(value, i_char, out int next_line_start))
+                // match "True", "true", or "TRUE"
+                if(value[0] == 'T')
                 {
-                    i_char = next_line_start;
-                    if (this.inputBuffer.Length > 0)
+                    if (value[1] == 'r' && value[2] == 'u' && value[3] == 'e')
                     {
-                        this.buffer.Add( (char*)this.inputBuffer.GetUnsafePtr(), this.inputBuffer.Length );
-                        this.inputBuffer.Clear();
-                        line_elem++;
+                        result = true;
+                        return true;
+                    }
+                    else if (value[1] == 'R' && value[2] == 'U' && value[3] == 'E')
+                    {
+                        result = true;
+                        return true;
+                    }
+                }
+                else if (value[0] == 't' && value[1] == 'r' && value[2] == 'u' && value[3] == 'e')
+                {
+                    result = true;
+                    return true;
+                }
+            }
+            result = false;
+            return false;
+        }
+        /// <summary>
+        /// Try to parse StringEntity to Int32. Cannot accept whitespaces & hex format (this is differ from official C# int.TryParse()). Use TryParseHex(out T) for hex data.
+        /// </summary>
+        public static bool TryParse(this IParseExt value, out int result)
+        {
+            const int max_len = 10;
+
+            result = 0;
+            if (value.Length <= 0) return false;
+
+            int i_start = 0;
+            if (value[0].IsSign(out int sign)) i_start = 1;
+
+            int digit_count = 0;
+            int MSD = 0;
+
+            int tmp = 0;
+            for (int i = i_start; i < value.Length; i++)
+            {
+                if (value[i].IsDigit(out int d))
+                {
+                    if (digit_count > 0) digit_count++;
+
+                    if (MSD == 0 && d > 0)
+                    {
+                        MSD = d;
+                        digit_count = 1;
                     }
 
-                    this.lineIndexList.Add(new LineIndex(line_start, line_elem));
+                    tmp = tmp * 10 + d;
+
+                    if (digit_count == max_len)
+                    {
+                        if (MSD > 2) return false;
+                        if (sign == 1 && tmp < 0) return false;
+                        if (sign == -1 && (tmp - 1) < 0) return false;
+                    }
+                    if (digit_count > max_len) return false;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            result = sign * tmp;
+            return true;
+        }
+        /// <summary>
+        /// Try to parse StringEntity to Int64. Cannot accept whitespaces & hex format (this is differ from official C# long.TryParse()). Use TryParseHex(out T) for hex data.
+        /// </summary>
+        public static bool TryParse(this IParseExt value, out long result)
+        {
+            const int max_len = 19;
+
+            result = 0;
+            if (value.Length <= 0) return false;
+
+            int i_start = 0;
+            if (value[0].IsSign(out int sign)) i_start = 1;
+
+            int digit_count = 0;
+            int MSD = 0;
+
+            long tmp = 0;
+            for (int i = i_start; i < value.Length; i++)
+            {
+                if (value[i].IsDigit(out int d))
+                {
+                    if (digit_count > 0) digit_count++;
+
+                    if (MSD == 0 && d > 0)
+                    {
+                        MSD = d;
+                        digit_count = 1;
+                    }
+
+                    tmp = tmp * 10 + d;
+
+                    if (digit_count == max_len)
+                    {
+                        if (sign == 1 && tmp < 0L) return false;
+                        if (sign == -1 && (tmp - 1L) < 0L) return false;
+                    }
+                    if (digit_count > max_len) return false;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            result = sign * tmp;
+            return true;
+        }
+        /// <summary>
+        /// Try to parse StringEntity to float. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# float.TryParse()).
+        /// Use TryParseHex(out T) for hex data.
+        /// </summary>
+        public static bool TryParse(this IParseExt value, out float result)
+        {
+            result = 0.0f;
+            if (value.Length <= 0) return false;
+
+            if (!value.TryParse(out double tmp)) return false;
+
+            float f_cast = (float)tmp;
+            if (float.IsInfinity(f_cast)) return false;
+
+            result = f_cast;
+            return true;
+        }
+        /// <summary>
+        /// Try to parse StringEntity to double. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# double.TryParse()).
+        /// Use TryParseHex(out T) for hex data.
+        /// </summary>
+        public static bool TryParse(this IParseExt value, out double result)
+        {
+            result = 0.0;
+            if (value.Length <= 0) return false;
+            if (!value.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
+
+            //UnityEngine.Debug.Log("i_start=" + i_start.ToString() + ", dot_pos=" + dot_pos.ToString() + ", exp_pos=" + exp_pos.ToString() + ", n_pow=" + n_pow.ToString());
+
+            double mantissa = 0.0;
+            for (int i = exp_pos - 1; i >= i_start; i--)
+            {
+                if (i == dot_pos) continue;
+                mantissa = mantissa * 0.1 + (double)value[i].ToInt();
+            }
+
+            int m_pow = 0;
+            if (dot_pos > i_start + 1) m_pow = dot_pos - i_start - 1;
+            if (dot_pos == i_start) m_pow = -1;
+
+            double tmp = mantissa * (sign * math.pow(10.0, n_pow + m_pow));
+            if (double.IsInfinity(tmp)) return false;
+
+            result = tmp;
+            return true;
+        }
+
+        private static bool TryParseFloatFormat(this IParseExt value, out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)
+        {
+            i_start = 0;
+            if (value[0].IsSign(out sign)) i_start = 1;
+
+            // eat zeros on the head
+            for(int i=i_start; i<value.Length; i++)
+            {
+                char c = value[i];
+                if(c == '0')
+                {
+                    i_start++;
+                }
+                else
+                {
                     break;
                 }
-                else if (this.IsDelim(value, i_char, out int next_start))
+            }
+
+            dot_pos = -1;
+            exp_pos = -1;
+
+            n_pow = 0;
+            int exp_sign = 1;
+
+            int digit_count = 0;
+            int zero_count = 0;
+            bool non_zero_found = false;
+
+            int dummy;
+
+            // format check
+            for (int i = i_start; i < value.Length; i++)
+            {
+                char c = value[i];
+                //UnityEngine.Debug.Log("parse format: i=" + i.ToString() + ", c=" + c.ToString());
+                if (c.IsDigit(out dummy))
                 {
-                    if (this.inputBuffer.Length > 0)
-                    {
-                        this.buffer.Add((char*)this.inputBuffer.GetUnsafePtr(), this.inputBuffer.Length);
-                        this.inputBuffer.Clear();
-                        line_elem++;
-                    }
-                    i_char = next_start;
+                    if (exp_pos == -1) digit_count++;
+                    if (dummy != 0) non_zero_found = true;
+                    if (!non_zero_found && exp_pos == -1 && dummy == 0) zero_count++;
+                    // do nothing
+                    //UnityEngine.Debug.Log("c is number");
+                }
+                else if (c.IsDot())
+                {
+                    if (dot_pos != -1 || dot_pos == i_start + 1) return false;
+                    if (exp_pos > 0 && i >= exp_pos) return false;
+                    dot_pos = i;
+                    //UnityEngine.Debug.Log("c is dot");
+                }
+                else if (c.IsExp())
+                {
+                    //UnityEngine.Debug.Log("c is EXP");
+
+                    //if (exp_pos != -1) return false;
+                    //if (i <= i_start + 1) return false;
+                    //if (value.Length - i < 2) return false;  // [+/-] & 1 digit or lager EXP num.
+                    if (exp_pos != -1 ||
+                        i == i_start + 1 ||
+                        (value.Length - i) < 2 ||
+                        !value[i + 1].IsSign(out exp_sign)) return false;
+
+                    exp_pos = i;
+                }
+                else if(c.IsSign(out dummy))
+                {
+                    if (i != exp_pos + 1) return false;
+                    // do nothing (exp_sign is read in IsExp() check.)
                 }
                 else
                 {
-                    inputBuffer.Add(value[i_char]);
+                    //UnityEngine.Debug.Log("failure to parse");
+                    return false;
                 }
             }
-            this.now_pos = i_char;
+
+            // decode exp part
+            if(exp_pos > 0)
+            {
+                if (value.Length - (exp_pos + 2) > 8) return false;  // capacity of int
+                for (int i = exp_pos + 2; i < value.Length; i++)
+                {
+                    n_pow = n_pow * 10 + value[i].ToInt();
+                    //UnityEngine.Debug.Log("n_pow(1)=" + n_pow.ToString());
+                }
+                n_pow *= exp_sign;
+            }
+            else
+            {
+                // no [e/E+-[int]] part
+                exp_pos = value.Length;
+            }
+
+            if (dot_pos < 0) dot_pos = exp_pos;
+
+            //UnityEngine.Debug.Log("ParseFloatFormat=" + true.ToString());
+
+            return true;
         }
 
-        private bool IsLineEnd(string str, int i, out int next_start)
+        unsafe public static bool TryParseHex(this IParseExt value, out int result, Endian endian = Endian.Big)
         {
-            next_start = -1;
-            int left_len = str.Length - i;
-
-            // end of file
-            if (left_len == 0)
+            if (value.TryParseHex32(out uint buf, endian))
             {
-                next_start = -1;
+                result = *(int*)&buf;
                 return true;
             }
-
-            bool ret = false;
-            char c = str[i];
-            if (c == '\n' ||
-                c == '\r')
+            else
             {
-                ret = true;
-                next_start = i + 1;
-
-                if (left_len >= 2)
-                {
-                    if (c == '\r' & str[i + 1] == '\n')
-                    {
-                        next_start = i + 2;
-                        if (left_len == 2) next_start = -1;
-                    }
-                }
-                else
-                {
-                    // left_len <= 1, reach to end.
-                    next_start = -1;
-                }
+                result = 0;
+                return false;
             }
-
-            return ret;
+        }
+        unsafe public static bool TryParseHex(this IParseExt value, out long result, Endian endian = Endian.Big)
+        {
+            if (value.TryParseHex64(out ulong buf, endian))
+            {
+                result = *(long*)&buf;
+                return true;
+            }
+            else
+            {
+                result = 0;
+                return false;
+            }
+        }
+        unsafe public static bool TryParseHex(this IParseExt value, out float result, Endian endian = Endian.Big)
+        {
+            if (value.TryParseHex32(out uint buf, endian))
+            {
+                result = *(float*)&buf;
+                return true;
+            }
+            else
+            {
+                result = 0.0f;
+                return false;
+            }
+        }
+        unsafe public static bool TryParseHex(this IParseExt value, out double result, Endian endian = Endian.Big)
+        {
+            if (value.TryParseHex64(out ulong buf, endian))
+            {
+                result = *(double*)&buf;
+                return true;
+            }
+            else
+            {
+                result = 0.0;
+                return false;
+            }
         }
 
-        private bool IsDelim(string str, int index, out int next_start)
+        private static bool TryParseHex32(this IParseExt value, out uint buf, Endian endian)
         {
-            bool ret = false;
-            next_start = -1;
+            const int n_digits = 8;  // accepts 8 digits set (4bit * 8)
 
-            long left_len = str.Length - index;
-            int match_span = 0;
+            int i_start = 0;
+            buf = 0;
 
-            foreach (ReadOnlyStringEntity delim in this.elemDelim)
+            if (value[1] == 'x' && value[0] == '0') i_start = 2;
+
+            if (value.Length - i_start != n_digits)
             {
-                if (delim.Length > match_span && delim.Length <= left_len)
+                return false;
+            }
+
+            if(endian == Endian.Big)
+            {
+                for (int i = i_start; i < value.Length; i++)
                 {
-                    if (delim.Length == 1 && delim[0] == 0)  // "null" delim
+                    if (value[i].IsHex(out uint h))
                     {
-                        ret = Char.IsWhiteSpace(str[index]);
-                        if (ret)
-                        {
-                            match_span = 1;
-                            int j = 1;
-                            while (Char.IsWhiteSpace(str[index + j]))
-                            {
-                                next_start = index + j;
-                                j++;
-                                match_span++;
-                            }
-                        }
+                        buf = (buf << 4) | h;
                     }
                     else
                     {
-                        int m = 0;
-                        for (int j = 0; j < delim.Length; j++)
-                        {
-                            if (str[index + j] == delim[j])
-                            {
-                                m++;
-                            }
-                            else
-                            {
-                                break;
-                            }
-                        }
-                        if (m == delim.Length)
-                        {
-                            ret = true;
-                            match_span = m;
-                        }
+                        return false;
+                    }
+                }
+            }
+            else if(endian == Endian.Little)
+            {
+                int n_byte = value.Length / 2;
+                int i_last = i_start / 2;
+                for(int i = n_byte - 1; i>=i_last; i--)
+                {
+                    char c0 = value[2 * i];
+                    char c1 = value[2 * i + 1];
+
+                    if(c0.IsHex(out uint h0) && c1.IsHex(out uint h1))
+                    {
+                        buf = (buf << 4) | h0;
+                        buf = (buf << 4) | h1;
+                    }
+                    else
+                    {
+                        return false;
                     }
                 }
             }
 
-            next_start = index + match_span;
-            return ret;
+            return true;
+        }
+        private static bool TryParseHex64(this IParseExt value, out ulong buf, Endian endian)
+        {
+            const int n_digits = 16;  // accepts 16 digits set (4bit * 16)
+
+            int i_start = 0;
+            buf = 0;
+
+            if (value[1] == 'x' && value[0] == '0') i_start = 2;
+
+            if (value.Length - i_start != n_digits)
+            {
+                return false;
+            }
+
+            if (endian == Endian.Big)
+            {
+                for (int i = i_start; i < value.Length; i++)
+                {
+                    if (value[i].IsHex(out uint h))
+                    {
+                        buf = (buf << 4) | h;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+            else if (endian == Endian.Little)
+            {
+                int n_byte = value.Length / 2;
+                int i_last = i_start / 2;
+                for (int i = n_byte - 1; i >= i_last; i--)
+                {
+                    char c0 = value[2 * i];
+                    char c1 = value[2 * i + 1];
+
+                    if (c0.IsHex(out uint h0) && c1.IsHex(out uint h1))
+                    {
+                        buf = (buf << 4) | h0;
+                        buf = (buf << 4) | h1;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Check the value is integral value or not.
+        /// </summary>
+        public static bool IsIntegral(this IParseExt value)
+        {
+            return value.TryParse(out long dummy);
+        }
+        /// <summary>
+        /// Check the value is numeric value or not.
+        /// </summary>
+        public static bool IsNumeric(this IParseExt value)
+        {
+            return value.TryParse(out double dummy);
+        }
+        /// <summary>
+        /// Check the value is 32bit hex data or not.
+        /// </summary>
+        public static bool IsHex32(this IParseExt value)
+        {
+            return value.TryParseHex32(out uint dummy, Endian.Little);
+        }
+        /// <summary>
+        /// Check the value is 64bit hex data or not.
+        /// </summary>
+        public static bool IsHex64(this IParseExt value)
+        {
+            return value.TryParseHex64(out ulong dummy, Endian.Little);
         }
     }
 
-    public readonly unsafe struct LineEntity : IEnumerable<ReadOnlyStringEntity>
-    {
-        private readonly ReadOnlyStringEntity* entity_list_ptr;
-        private readonly int start;
-        private readonly int len;
-
-        public int Start { get { return this.start; } }
-        public int Length { get { return this.len; } }
-
-        public int End { get { return this.Start + this.Length; } }
-
-        public LineEntity(ReadOnlyStringEntity* entity_list_ptr, int start, int len)
-        {
-            this.entity_list_ptr = entity_list_ptr;
-            this.start = start;
-            this.len = len;
-        }
-
-        public ReadOnlyStringEntity this[int i]
-        {
-            get
-            {
-                var entity = *(this.entity_list_ptr + this.Start + i);
-                return entity;
-            }
-        }
-        public ReadOnlyStringEntity At(int i)
-        {
-            if (i < 0 || this.Length <= i)
-            {
-                throw new IndexOutOfRangeException("index = " + i.ToString() + ", must be in range of [0~" + (this.Length - 1).ToString() + "].");
-            }
-            return this[i];
-        }
-
-        public IEnumerator<ReadOnlyStringEntity> GetEnumerator()
-        {
-            for (int i = 0; i < this.Length; i++)
-                yield return this[i];
-        }
-        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
-    }
 
     namespace Impl
     {
-        public struct LineIndex
+
+        static class CharExt
         {
-            public int Start { get; private set; }
-            public int Length { get; private set; }
-
-            public int End { get { return this.Start + this.Length + 1; } }
-
-            public LineIndex(int st, int len)
+            public static bool IsSign(this char c, out int sign)
             {
-                this.Start = st;
-                this.Length = len;
+                if (c == '-')
+                {
+                    sign = -1;
+                    return true;
+                }
+                else if (c == '+')
+                {
+                    sign = 1;
+                    return true;
+                }
+                sign = 1;
+                return false;
+            }
+            public static bool IsDigit(this char c, out int digit)
+            {
+                if ('0' <= c && c <= '9')
+                {
+                    digit = c.ToInt();
+                    return true;
+                }
+                digit = 0;
+                return false;
+            }
+            public static bool IsHex(this char c, out uint hex)
+            {
+                if (c.IsDigit(out int d))
+                {
+                    hex = (uint)d;
+                    return true;
+                }
+                else if ('A' <= c && c <= 'F')
+                {
+                    hex = (uint)(c - 'A' + 10);
+                    return true;
+                }
+                else if ('a' <= c && c <= 'f')
+                {
+                    hex = (uint)(c - 'a' + 10);
+                    return true;
+                }
+                hex = 0;
+                return false;
+            }
+            public static bool IsDot(this char c)
+            {
+                if (c == '.') return true;
+                return false;
+            }
+            public static bool IsExp(this char c)
+            {
+                if (c == 'e' || c == 'E') return true;
+                return false;
+            }
+            public static int ToInt(this char c)
+            {
+                return c - '0';
             }
         }
     }

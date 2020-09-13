@@ -11,32 +11,31 @@ using Unity.Collections.LowLevel.Unsafe;
 
 namespace NativeStringCollections
 {
+    using NativeStringCollections.Utility;
     using NativeStringCollections.Impl;
 
-    [NativeContainer]
+
     public struct NativeStringList : IDisposable, IEnumerable<StringEntity>
     {
         private NativeList<char> char_arr;
         private NativeList<ElemIndex> elemIndexList;
+        private Allocator _alloc;
 
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-        private NativeArray<ulong> genTrace;
-        private ulong genSignature;
+        private NativeArray<long> genTrace;
+        private PtrHandle<long> genSignature;
 #endif
-
-        private bool allocated;
 
         public unsafe NativeStringList(Allocator alloc)
         {
             char_arr = new NativeList<char>(alloc);
             elemIndexList = new NativeList<ElemIndex>(alloc);
+            _alloc = alloc;
 
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-            genTrace = new NativeArray<ulong>(1, alloc);
-            genSignature = (ulong)char_arr.GetUnsafePtr();
+            genTrace = new NativeArray<long>(1, alloc);
+            genSignature = new PtrHandle<long>((long)char_arr.GetUnsafePtr(), alloc);  // sigunature = address value of ptr for char_arr.
 #endif
-
-            allocated = true;
         }
 
         public void Dispose()
@@ -52,21 +51,19 @@ namespace NativeStringCollections
                 
             }
             // disposing unmanaged resource
-            if (this.allocated)
+            if (char_arr.IsCreated)
             {
                 this.char_arr.Dispose();
                 this.elemIndexList.Dispose();
 
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
                 this.genTrace.Dispose();
-                this.genSignature = 0;
+                this.genSignature.Dispose();
 #endif
-
-                this.allocated = false;
             }
         }
 
-        public bool IsCreated { get { return this.allocated; } }
+        public bool IsCreated { get { return char_arr.IsCreated; } }
 
         public void Clear()
         {
@@ -91,7 +88,7 @@ namespace NativeStringCollections
                 }
                 if (value == this.char_arr.Length) return;
 
-                var tmp = new NativeList<char>(value, Allocator.Persistent);
+                var tmp = new NativeList<char>(value, _alloc);
                 tmp.Clear();
                 tmp.AddRange(this.char_arr);
 
@@ -118,7 +115,7 @@ namespace NativeStringCollections
                 }
                 if (value == this.elemIndexList.Length) return;
 
-                var tmp = new NativeList<ElemIndex>(value, Allocator.Persistent);
+                var tmp = new NativeList<ElemIndex>(value, _alloc);
                 tmp.Clear();
                 tmp.AddRange(this.elemIndexList);
 
@@ -127,18 +124,19 @@ namespace NativeStringCollections
             }
         }
 
-        unsafe public StringEntity this[int index]
+        public unsafe StringEntity this[int index]
         {
             get
             {
                 var elem_index = this.elemIndexList[index];
+                char* elem_ptr = (char*)this.char_arr.GetUnsafePtr() + elem_index.Start;
             //        UnityEngine.Debug.Log("index: " + index.ToString()
             //                          + ", ptr: " + ((int)this.char_arr.GetUnsafePtr()).ToString() + ", Start: " + elem_index.Start.ToString() + ", Length: " + elem_index.Length.ToString()
-            //                          + ", GenPtr: " + ((ulong)this.GetGenPtr()).ToString() + ", Gen: " + this.GetGen().ToString());
+            //                          + ", GenPtr: " + ((long)this.GetGenPtr()).ToString() + ", Gen: " + this.GetGen().ToString());
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-                return new StringEntity((char*)this.char_arr.GetUnsafePtr(), this.GetGenPtr(), this.GetGen(), elem_index.Start, elem_index.Length);
+                return new StringEntity(elem_ptr, elem_index.Length, this.GetGenPtr(), this.GetGen());
 #else
-                return new StringEntity((char*)this.char_arr.GetUnsafePtr(), elem_index.Start, elem_index.Length);
+                return new StringEntity(elem_ptr, elem_index.Length);
 #endif
             }
         }
@@ -159,44 +157,54 @@ namespace NativeStringCollections
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public void Add(string str)
+        public void Add(IEnumerable<char> str)
         {
-            int Start = this.char_arr.Length;
-            for (int i = 0; i < str.Length; i++)
+            int start = this.char_arr.Length;
+            int len = 0;
+            foreach(var c in str)
             {
-                this.char_arr.Add(str[i]);
+                this.char_arr.Add(c);
+                len++;
             }
-            this.elemIndexList.Add(new ElemIndex(Start, str.Length));
+            this.elemIndexList.Add(new ElemIndex(start, len));
 
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
             this.UpdateSignature();
 #endif
         }
-        unsafe public void Add(char* ptr, int Length)
+        public unsafe void Add(char* ptr, int Length)
         {
             int Start = this.char_arr.Length;
-            for (int i = 0; i < Length; i++)
-            {
-                this.char_arr.Add(ptr[i]);
-            }
+            this.char_arr.AddRange((void*)ptr, Length);
             this.elemIndexList.Add(new ElemIndex(Start, Length));
 
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
             this.UpdateSignature();
 #endif
         }
-        public void Add(IStringEntityBase entity)
+        /// <summary>
+        /// specialize for StringEntity
+        /// </summary>
+        /// <param name="entity"></param>
+        public unsafe void Add(StringEntity entity)
         {
-            int Start = this.char_arr.Length;
-            for (int i = 0; i < entity.Length; i++)
-            {
-                this.char_arr.Add(entity[i]);
-            }
-            this.elemIndexList.Add(new ElemIndex(Start, entity.Length));
-
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-            this.UpdateSignature();
-#endif
+            this.Add((char*)entity.GetUnsafePtr(), entity.Length);
+        }
+        /// <summary>
+        /// specialize for ReadOnlyStringEntity
+        /// </summary>
+        /// <param name="entity"></param>
+        public unsafe void Add(ReadOnlyStringEntity entity)
+        {
+            this.Add((char*)entity.GetUnsafePtr(), entity.Length);
+        }
+        /// <summary>
+        /// specialize for NativeList<char>
+        /// </summary>
+        /// <param name="entity"></param>
+        public unsafe void Add(NativeList<char> str)
+        {
+            this.Add((char*)str.GetUnsafePtr(), str.Length);
         }
 
         /// <summary>
@@ -204,31 +212,10 @@ namespace NativeStringCollections
         /// </summary>
         /// <param name="key">entity</param>
         /// <returns>index or -1 (not found)</returns>
-        unsafe public int IndexOf(IStringEntityBase key)
+        public unsafe int IndexOf(IEnumerable<char> key)
         {
             if (this.elemIndexList.Length < 1) return -1;
-
-            int left = 0;
-            int right = this.elemIndexList.Length - 1;
-            while (right >= left)
-            {
-                int mid = left + (right - left) / 2;
-                IStringEntityBase entity = this[mid];
-
-                if (key.Equals(entity)) return mid;
-                else if (entity.Start > key.Start) right = mid - 1;
-                else if (entity.Start < key.Start) left = mid + 1;
-                else return -1;
-            }
-            return -1;
-        }
-        /// <summary>
-        /// Get the index of the entity. This method performs full search.
-        /// </summary>
-        public int IndexOf(string key)
-        {
-            if (this.elemIndexList.Length < 1) return -1;
-            for(int i=0; i<this.elemIndexList.Length; i++)
+            for (int i = 0; i < this.elemIndexList.Length; i++)
             {
                 var entity = this[i];
                 if (entity.Equals(key)) return i;
@@ -347,21 +334,21 @@ namespace NativeStringCollections
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
         unsafe private void UpdateSignature()
         {
-            ulong now_sig = GetGenSigneture();
+            long now_sig = GetGenSigneture();
             if (now_sig != this.genSignature)
             {
                 this.NextGen();
-                this.genSignature = now_sig;
+                this.genSignature.Value = now_sig;
             }
         }
         private void NextGen()
         {
-            ulong now_gen = this.genTrace[0];
+            long now_gen = this.genTrace[0];
             this.genTrace[0] = now_gen + 1;
         }
-        unsafe private ulong GetGenSigneture() { return (ulong)this.char_arr.GetUnsafePtr(); }
-        private ulong GetGen() { return this.genTrace[0]; }
-        unsafe private ulong* GetGenPtr() { return (ulong*)this.genTrace.GetUnsafePtr(); }
+        unsafe private long GetGenSigneture() { return (long)this.char_arr.GetUnsafePtr(); }
+        private long GetGen() { return this.genTrace[0]; }
+        unsafe private long* GetGenPtr() { return (long*)this.genTrace.GetUnsafePtr(); }
 #endif
     }
 

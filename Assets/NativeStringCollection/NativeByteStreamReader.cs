@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 
+using Unity.Jobs;
 using Unity.Collections;
 using Unity.IO.LowLevel.Unsafe;
 using Unity.Collections.LowLevel.Unsafe;
@@ -9,33 +11,45 @@ namespace NativeStringCollections.Impl
 {
     using NativeStringCollections.Utility;
 
+    [StructLayout(LayoutKind.Auto)]
+    internal struct ByteStreamReaderInfo
+    {
+        public long fileSize;
+        public Boolean disposePathHandle;
+
+        public int blockSize;
+        public int blockNum;
+        public int blockPos;
+
+        public int dataLength;
+
+        public Boolean allocated;
+    }
+
+
     public unsafe struct NativeByteStreamReader : IDisposable
     {
-        private const int DefaultBufferSize = 4096;
-        private const int MinBufferSize = 1024;
-
         private GCHandle<string> _path;
-        private long _fileSize;
-        private bool _disposePathHandle;
-
-        private int _blockSize;
-        private int _blockNum;
-        private int _blockPos;
+        private PtrHandle<ByteStreamReaderInfo> _info;
+        private NativeArray<byte> _byteBuffer;
+        private NativeArray<ReadCommand> _readCommands;
 
         private Allocator _alloc;
 
-        private NativeArray<byte> _byteBuffer;
-        private int _dataLength;
-
-        private NativeArray<ReadCommand> _readCommands;
-
-        private bool _allocated;
 
         public string Path { get { return _path.Target; } }
-        public int BufferSize { get { return _dataLength; } }
-        public int Length { get { return _blockNum; } }
-        public int Pos { get { return _blockPos; } }
-        public bool EndOfStream { get { return _blockPos == _blockNum; } }
+        public int BufferSize { get { return _info.Target->dataLength; } }
+        public int Length { get { return _info.Target->blockNum; } }
+        public int Pos
+        {
+            get { return _info.Target->blockPos; }
+            set
+            {
+                if (value < 0 || _info.Target->blockNum <= value) throw new ArgumentOutOfRangeException("input Pos is out of range.");
+                _info.Target->blockPos = value;
+            }
+        }
+        public bool EndOfStream { get { return _info.Target->blockPos == _info.Target->blockNum; } }
 
         /// <summary>
         /// the constructor must be called by main thread only.
@@ -43,21 +57,24 @@ namespace NativeStringCollections.Impl
         /// <param name="path"></param>
         public NativeByteStreamReader(Allocator alloc)
         {
-            _path.Create("");
-            _disposePathHandle = true;
-
-            _fileSize = 0;
-
-            _alloc = alloc;
-            _byteBuffer = new NativeArray<byte>(MinBufferSize, alloc);
-            _dataLength = 0;
+            _info = new PtrHandle<ByteStreamReaderInfo>(alloc);
+            _byteBuffer = new NativeArray<byte>(Define.MinBufferSize, alloc);
             _readCommands = new NativeArray<ReadCommand>(1, alloc);
 
-            _blockSize = 0;
-            _blockNum = 0;
-            _blockPos = 0;
+            _path.Create("");
+            _info.Target->disposePathHandle = true;
 
-            _allocated = true;
+            _info.Target->fileSize = 0;
+
+            _alloc = alloc;
+
+            _info.Target->dataLength = 0;
+
+             _info.Target->blockSize = 0;
+             _info.Target->blockNum = 0;
+            _info.Target->blockPos = 0;
+
+            _info.Target->allocated = true;
         }
         /// <summary>
         /// initializer of NativeByteStreamReader.
@@ -66,7 +83,7 @@ namespace NativeStringCollections.Impl
         /// </summary>
         /// <param name="path">file path.</param>
         /// <param name="bufferSize">internal buffer size (if < 0, buffering entire the file).</param>
-        public void Init(string path, int bufferSize = DefaultBufferSize)
+        public void Init(string path, int bufferSize = Define.DefaultBufferSize)
         {
             var fileInfo = new System.IO.FileInfo(path);
             if (!fileInfo.Exists) throw new ArgumentException("file is not exists.");
@@ -85,7 +102,7 @@ namespace NativeStringCollections.Impl
         /// <param name="disposePathHandle">dispose pathHandle when this struct will be disposed.</param>
         /// <param name="fileSize">file size.</param>
         /// <param name="bufferSize">internal buffer size (if < 0, buffering entire the file).</param>
-        public void Init(GCHandle<string> pathHandle, bool disposePathHandle, long fileSize, int bufferSize = DefaultBufferSize)
+        public void Init(GCHandle<string> pathHandle, bool disposePathHandle, long fileSize, int bufferSize = Define.DefaultBufferSize)
         {
             this.InitState(pathHandle,disposePathHandle, fileSize, bufferSize);
         }
@@ -93,39 +110,41 @@ namespace NativeStringCollections.Impl
         {
             if (fileSize < 0) throw new ArgumentOutOfRangeException("file size must be > 0.");
 
-            if (_disposePathHandle) _path.Dispose();
+            if (_info.Target->disposePathHandle) _path.Dispose();
             _path = pathHandle;
-            _disposePathHandle = disposePathHandle;
-            _fileSize = fileSize;
+            _info.Target->disposePathHandle = disposePathHandle;
+            _info.Target->fileSize = fileSize;
             ;
-            int tgtBufferSize = Math.Max(bufferSize, MinBufferSize);
+            long tgtBufferSize = bufferSize;
+            if (tgtBufferSize < Define.MinBufferSize) tgtBufferSize = Define.MinBufferSize;
+            if (tgtBufferSize > Int32.MaxValue) tgtBufferSize = Int32.MaxValue;
 
             // for debug
             //tgtBufferSize = 64;
 
-            if (bufferSize < 0 || _fileSize < tgtBufferSize)
+            if (bufferSize < 0 || _info.Target->fileSize < tgtBufferSize)
             {
                 // buffering entire the file
-                _blockSize = (int)_fileSize;
-                _blockNum = 1;
+                _info.Target->blockSize = (int)_info.Target->fileSize;
+                _info.Target->blockNum = 1;
             }
             else
             {
                 // buffering as blocking
-                _blockSize = tgtBufferSize;
-                _blockNum = (int)(_fileSize / _blockSize) + 1;
+                _info.Target->blockSize = (int)tgtBufferSize;
+                _info.Target->blockNum = (int)(_info.Target->fileSize / _info.Target->blockSize) + 1;
             }
-            _blockPos = 0;
+            _info.Target->blockPos = 0;
 
             this.Reallocate();
         }
         private void Reallocate()
         {
             // reallocation buffer
-            if(_blockSize > _byteBuffer.Length)
+            if (_info.Target->blockSize > _byteBuffer.Length)
             {
                 _byteBuffer.Dispose();
-                _byteBuffer = new NativeArray<byte>(_blockSize, _alloc);
+                _byteBuffer = new NativeArray<byte>(_info.Target->blockSize, _alloc);
             }
         }
 
@@ -142,51 +161,64 @@ namespace NativeStringCollections.Impl
 
             }
             // disposing unmanaged resource
-            if (_allocated)
+            if (_info.Target->allocated)
             {
-                if(_disposePathHandle) _path.Dispose();
+                if (_info.Target->disposePathHandle) _path.Dispose();
 
+                _info.Dispose();
                 _byteBuffer.Dispose();
                 _readCommands.Dispose();
-
-                _allocated = false;
             }
         }
-
-        public int Read()
+        public ReadHandle ReadAsync()
         {
-            if (_blockPos == _blockNum) return -1; // EOF
+            if (EndOfStream) return new ReadHandle();  // returns void handle
 
             // check file termination
-            _dataLength = Math.Min(_blockSize, (int)(_fileSize - ((long)_blockSize) * _blockPos));
+            _info.Target->dataLength = Math.Min(_info.Target->blockSize, (int)(_info.Target->fileSize - ((long)_info.Target->blockSize) * _info.Target->blockPos));
 
             _readCommands[0] = new ReadCommand
             {
-                Offset = _blockPos * _blockSize,
-                Size = _dataLength,
+                Offset = _info.Target->blockPos * _info.Target->blockSize,
+                Size = _info.Target->dataLength,
                 Buffer = _byteBuffer.GetUnsafePtr(),
             };
 
             ReadHandle read_handle = AsyncReadManager.Read(_path.Target, (ReadCommand*)(_readCommands.GetUnsafePtr()), 1);
             if (!read_handle.IsValid()) throw new InvalidOperationException("failure to open file.");
+
+            _info.Target->blockPos++;
+            return read_handle;
+        }
+
+        public int Read()
+        {
+            if (EndOfStream) return -1; // EOF
+
+            var read_handle = this.ReadAsync();
             read_handle.JobHandle.Complete();
             read_handle.Dispose();
 
-            _blockPos++;
-            return _dataLength;
+            return _info.Target->dataLength;
         }
         public int Read(NativeList<byte> buff, bool append = false)
         {
-            if (_blockPos == _blockNum) return -1; // EOF
+            if (EndOfStream) return -1; // EOF
 
             if (!append) buff.Clear();
 
-            this.Read();
+            int len = this.Read();
 
-            if (_dataLength > 0) buff.AddRange(_byteBuffer.GetUnsafePtr(), _dataLength);
+            if (_info.Target->dataLength > 0) buff.AddRange(_byteBuffer.GetUnsafePtr(), _info.Target->dataLength);
 
-            return _dataLength;
+            return len;
         }
+
         public void* GetUnsafePtr() { return _byteBuffer.GetUnsafePtr(); }
+        public void* GetUnsafeReadOnlyPtr() { return _byteBuffer.GetUnsafeReadOnlyPtr(); }
+        public byte this[int index]
+        {
+            get { return _byteBuffer[index]; }
+        }
     }
 }
