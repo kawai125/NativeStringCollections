@@ -433,10 +433,25 @@ namespace NativeStringCollections
         {
             /// <summary>
             /// StringEntity generator for NativeList.
+            /// it is not guaranteed the referenced data after something modify of source NativeList.
             /// </summary>
             /// <param name="source"></param>
-            /// <returns><char></returns>
+            /// <returns></returns>
             public unsafe static StringEntity ToStringEntity(this NativeList<char> source)
+            {
+#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+                return new StringEntity((char*)source.GetUnsafePtr(), source.Length, null, -1);
+#else
+                return new StringEntity((char*)source.GetUnsafePtr(), source.Length);
+#endif
+            }
+            /// <summary>
+            /// StringEntity generator for NativeList.
+            /// it is not guaranteed the referenced data after something modify of source NativeList.
+            /// </summary>
+            /// <param name="source"></param>
+            /// <returns></returns>
+            public unsafe static StringEntity ToStringEntity(this NativeArray<char> source)
             {
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
                 return new StringEntity((char*)source.GetUnsafePtr(), source.Length, null, -1);

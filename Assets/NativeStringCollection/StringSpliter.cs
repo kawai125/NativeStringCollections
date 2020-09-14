@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -97,14 +98,23 @@ namespace NativeStringCollections
 
                 if (match_len > 0)
                 {
-                    int elem_len = i - start - 1;
+                    int elem_len = i - start;
                     if (elem_len > 0)
                     {
                         char* st_ptr = source_ptr + start;
-                        result.Add(st_ptr, match_len);
+                        result.Add(st_ptr, elem_len);
                     }
                     start = i + match_len;
+                    i += match_len;
                 }
+            }
+
+            // final part
+            if(start < source_len)
+            {
+                int len = source_len - start;
+                char* st_ptr = source_ptr + start;
+                result.Add(st_ptr, len);
             }
         }
 
@@ -163,7 +173,7 @@ namespace NativeStringCollections
             {
                 if (Char.IsWhiteSpace(source_ptr[i]))
                 {
-                    int len = (i - start) - 1;
+                    int len = (i - start);
                     if (len > 0)
                     {
                         char* st_ptr = source_ptr + start;
@@ -172,56 +182,15 @@ namespace NativeStringCollections
                     start = i + 1;
                 }
             }
-        }
 
-        /// <summary>
-        /// split function by Char.IsWhiteSpace() delimiter.
-        /// </summary>
-        /// <param name="source"></param>
-        /// <param name="result"></param>
-        /// <param name="append"></param>
-        public static unsafe void Split(this NativeList<char> source, NativeStringList result, bool append = false)
-        {
-            if (!append) result.Clear();
-            SplitImpl((char*)source.GetUnsafePtr(), source.Length, result);
+            // final part
+            if(start < source_len)
+            {
+                int len = source_len - start;
+                char* st_ptr = source_ptr + start;
+                result.Add(st_ptr, len);
+            }
         }
-        /// <summary>
-        /// split function by Char.IsWhiteSpace() delimiter.
-        /// </summary>
-        /// <param name="source"></param>
-        /// <param name="alloc"></param>
-        /// <returns>result</returns>
-        public static NativeStringList Split(this NativeList<char> source, Allocator alloc)
-        {
-            var tmp = new NativeStringList(alloc);
-            source.Split(tmp, false);
-            return tmp;
-        }
-        /// <summary>
-        /// split function by Char.IsWhiteSpace() delimiter.
-        /// </summary>
-        /// <param name="source"></param>
-        /// <param name="result"></param>
-        /// <param name="append"></param>
-        public static unsafe void Split(this IStringEntityBase source, NativeStringList result, bool append = false)
-        {
-            if (!append) result.Clear();
-            SplitImpl((char*)source.GetUnsafePtr(), source.Length, result);
-        }
-        /// <summary>
-        /// split function by Char.IsWhiteSpace() delimiter.
-        /// </summary>
-        /// <param name="source"></param>
-        /// <param name="alloc"></param>
-        /// <returns></returns>
-        public static NativeStringList Split(this IStringEntityBase source, Allocator alloc)
-        {
-            var tmp = new NativeStringList(alloc);
-            source.Split(tmp, false);
-            return tmp;
-        }
-
-
         private static unsafe void SplitImpl(char* source_ptr, int source_len, char delim, NativeStringList result)
         {
             int start = 0;
@@ -229,7 +198,7 @@ namespace NativeStringCollections
             {
                 if (source_ptr[i] == delim)
                 {
-                    int len = (i - start) - 1;
+                    int len = (i - start);
                     if (len > 0)
                     {
                         char* st_ptr = source_ptr + start;
@@ -238,58 +207,15 @@ namespace NativeStringCollections
                     start = i + 1;
                 }
             }
-        }
-        /// <summary>
-        /// split function by single char delimiter.
-        /// </summary>
-        /// <param name="source"></param>
-        /// <param name="delim"></param>
-        /// <param name="result"></param>
-        /// <param name="append"></param>
-        public static unsafe void Split(this NativeList<char> source, char delim, NativeStringList result, bool append = false)
-        {
-            if (!append) result.Clear();
-            SplitImpl((char*)source.GetUnsafePtr(), source.Length, delim, result);
-        }
-        /// <summary>
-        /// split function by single char delimiter.
-        /// </summary>
-        /// <param name="source"></param>
-        /// <param name="delim"></param>
-        /// <param name="alloc"></param>
-        /// <returns>result</returns>
-        public static NativeStringList Split(this NativeList<char> source, char delim, Allocator alloc)
-        {
-            var tmp = new NativeStringList(alloc);
-            source.Split(delim, tmp, false);
-            return tmp;
-        }
-        /// <summary>
-        /// split function by single char delimiter.
-        /// </summary>
-        /// <param name="source"></param>
-        /// <param name="delim"></param>
-        /// <param name="result"></param>
-        /// <param name="append"></param>
-        public static unsafe void Split(this IStringEntityBase source, char delim, NativeStringList result, bool append = false)
-        {
-            if (!append) result.Clear();
-            SplitImpl((char*)source.GetUnsafePtr(), source.Length, delim, result);
-        }
-        /// <summary>
-        /// split function by single char delimiter.
-        /// </summary>
-        /// <param name="source"></param>
-        /// <param name="delim"></param>
-        /// <param name="alloc"></param>
-        /// <returns></returns>
-        public static NativeStringList Split(this IStringEntityBase source, char delim, Allocator alloc)
-        {
-            var tmp = new NativeStringList(alloc);
-            source.Split(delim, tmp, false);
-            return tmp;
-        }
 
+            // final part
+            if (start < source_len)
+            {
+                int len = source_len - start;
+                char* st_ptr = source_ptr + start;
+                result.Add(st_ptr, len);
+            }
+        }
         private static unsafe void SplitImpl(char* source_ptr, int source_len, char* delim_ptr, int delim_len, NativeStringList result)
         {
             int start = 0;
@@ -311,7 +237,7 @@ namespace NativeStringCollections
 
                     if (is_delim)
                     {
-                        int len = (i - start) - 1;
+                        int len = (i - start);
                         if (len > 0)
                         {
                             char* st_ptr = source_ptr + start;
@@ -321,9 +247,120 @@ namespace NativeStringCollections
                     }
                 }
             }
+
+            // final part
+            if (start < source_len)
+            {
+                int len = source_len - start;
+                char* st_ptr = source_ptr + start;
+                result.Add(st_ptr, len);
+            }
+        }
+
+        /// <summary>
+        /// split into NativeStringList by Char.IsWhiteSpace() delimiter.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="result"></param>
+        /// <param name="append"></param>
+        public static unsafe void Split(this NativeList<char> source, NativeStringList result, bool append = false)
+        {
+            if (!append) result.Clear();
+            SplitImpl((char*)source.GetUnsafePtr(), source.Length, result);
         }
         /// <summary>
-        /// split function by NativeList<char> delimiter.
+        /// split into NativeStringList by Char.IsWhiteSpace() delimiter.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="alloc"></param>
+        /// <returns>result</returns>
+        public static NativeStringList Split(this NativeList<char> source, Allocator alloc)
+        {
+            var tmp = new NativeStringList(alloc);
+            source.Split(tmp, false);
+            return tmp;
+        }
+        /// <summary>
+        /// split into NativeStringList by Char.IsWhiteSpace() delimiter.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="result"></param>
+        /// <param name="append"></param>
+        public static unsafe void Split(this IStringEntityBase source, NativeStringList result, bool append = false)
+        {
+            if (!append) result.Clear();
+            SplitImpl((char*)source.GetUnsafePtr(), source.Length, result);
+        }
+        /// <summary>
+        /// split into NativeStringList by Char.IsWhiteSpace() delimiter.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeStringList Split(this IStringEntityBase source, Allocator alloc)
+        {
+            var tmp = new NativeStringList(alloc);
+            source.Split(tmp, false);
+            return tmp;
+        }
+
+
+
+        /// <summary>
+        /// split into NativeStringList by single char delimiter.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="delim"></param>
+        /// <param name="result"></param>
+        /// <param name="append"></param>
+        public static unsafe void Split(this NativeList<char> source, char delim, NativeStringList result, bool append = false)
+        {
+            if (!append) result.Clear();
+            SplitImpl((char*)source.GetUnsafePtr(), source.Length, delim, result);
+        }
+        /// <summary>
+        /// split into NativeStringList by single char delimiter.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="delim"></param>
+        /// <param name="alloc"></param>
+        /// <returns>result</returns>
+        public static NativeStringList Split(this NativeList<char> source, char delim, Allocator alloc)
+        {
+            var tmp = new NativeStringList(alloc);
+            source.Split(delim, tmp, false);
+            return tmp;
+        }
+        /// <summary>
+        /// split into NativeStringList by single char delimiter.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="delim"></param>
+        /// <param name="result"></param>
+        /// <param name="append"></param>
+        public static unsafe void Split(this IStringEntityBase source, char delim, NativeStringList result, bool append = false)
+        {
+            if (!append) result.Clear();
+            SplitImpl((char*)source.GetUnsafePtr(), source.Length, delim, result);
+        }
+        /// <summary>
+        /// split into NativeStringList by single char delimiter.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="delim"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeStringList Split(this IStringEntityBase source, char delim, Allocator alloc)
+        {
+            var tmp = new NativeStringList(alloc);
+            source.Split(delim, tmp, false);
+            return tmp;
+        }
+
+
+
+        /// <summary>
+        /// split into NativeStringList by NativeList<char> delimiter.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="delim"></param>
@@ -336,7 +373,7 @@ namespace NativeStringCollections
             SplitImpl((char*)source.GetUnsafePtr(), source.Length, (char*)delim.GetUnsafePtr(), delim.Length, result);
         }
         /// <summary>
-        /// split function by NativeList<char> delimiter.
+        /// split into NativeStringList by NativeList<char> delimiter.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="delim"></param>
@@ -349,7 +386,7 @@ namespace NativeStringCollections
             return tmp;
         }
         /// <summary>
-        /// split function by NativeList<char> delimiter.
+        /// split into NativeStringList by NativeList<char> delimiter.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="delim"></param>
@@ -362,7 +399,7 @@ namespace NativeStringCollections
             SplitImpl((char*)source.GetUnsafePtr(), source.Length, (char*)delim.GetUnsafePtr(), delim.Length, result);
         }
         /// <summary>
-        /// split function by NativeList<char> delimiter.
+        /// split into NativeStringList by NativeList<char> delimiter.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="delim"></param>
@@ -375,7 +412,7 @@ namespace NativeStringCollections
             return tmp;
         }
         /// <summary>
-        /// split function by StringEntity delimiter.
+        /// split into NativeStringList by StringEntity delimiter.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="delim"></param>
@@ -388,7 +425,7 @@ namespace NativeStringCollections
             SplitImpl((char*)source.GetUnsafePtr(), source.Length, (char*)delim.GetUnsafePtr(), delim.Length, result);
         }
         /// <summary>
-        /// split function by StringEntity delimiter.
+        /// split into NativeStringList by StringEntity delimiter.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="delim"></param>
@@ -401,7 +438,7 @@ namespace NativeStringCollections
             return tmp;
         }
         /// <summary>
-        /// split function by StringEntity delimiter.
+        /// split into NativeStringList by StringEntity delimiter.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="delim"></param>
@@ -414,7 +451,7 @@ namespace NativeStringCollections
             SplitImpl((char*)source.GetUnsafePtr(), source.Length, (char*)delim.GetUnsafePtr(), delim.Length, result);
         }
         /// <summary>
-        /// split function by StringEntity delimiter.
+        /// split into NativeStringList by StringEntity delimiter.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="delim"></param>
