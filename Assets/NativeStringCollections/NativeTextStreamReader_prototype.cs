@@ -8,14 +8,14 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.IO.LowLevel.Unsafe;
 
 
-namespace NativeStringCollections
+namespace NativeStringCollections.Deprected
 {
     using NativeStringCollections.Utility;
     using NativeStringCollections.Impl;
+    using NativeStringCollections.Deprected.Impl;
 
     namespace Impl
     {
-        [StructLayout(LayoutKind.Auto)]
         internal struct TextStreamReaderInfo
         {
             public Boolean checkPreamble;
@@ -124,6 +124,9 @@ namespace NativeStringCollections
                 _info.Target->disposeReadHandle = false;
             }
         }
+
+        public int Length { get { return _byteStream.Length; } }
+        public int Pos { get { return _byteStream.Pos; } }
 
         public Encoding CurrentEncoding { get { return _encoding.Target; } }
         /// <summary>
@@ -257,9 +260,10 @@ namespace NativeStringCollections
                 charBuff.ResizeUninitialized(char_len);
 
                 decoder.Target.GetChars(byte_ptr, byte_len, (char*)charBuff.GetUnsafePtr(), char_len, false);
+
+                decoder.Dispose();  // release decoder handle
             }
         }
-        /*
         private struct ReadLinesJob : IJob
         {
             public PtrHandle<TextStreamReaderInfo> info;
@@ -356,7 +360,7 @@ namespace NativeStringCollections
                 }
             }
         }
-        */
+
         private struct CopyCharBuffJob : IJob
         {
             public NativeHeadRemovableList<char> charBuff;
@@ -392,12 +396,11 @@ namespace NativeStringCollections
             var decode_job = new DecodeJob();
             decode_job.preamble = _preamble;
             decode_job.info = _info;
-            decode_job.decoder = _decoder;
+            decode_job.decoder.Create(_decoder.Target);
             decode_job.byteStream = _byteStream;
             decode_job.charBuff = _charBuff;
             return decode_job.Schedule(job_handle);
         }
-        /*
         public JobHandle ReadLineAsync(NativeStringList result, bool append = false)
         {
 
@@ -435,7 +438,6 @@ namespace NativeStringCollections
             _info.Target->jobHandle = job;
             return job;
         }
-        */
         public JobHandle ReadBufferAsync(NativeList<char> result, bool append = false)
         {
             if (!append) result.Clear();

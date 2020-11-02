@@ -51,7 +51,7 @@ namespace NativeStringCollections.Test
         // Start is called before the first frame update
         void Start()
         {
-            SampleDataPath = Application.dataPath + "/../short_sample.csv";
+            SampleDataPath = Application.dataPath + "/../sample_short.csv";
 
             // set default test sequence
             // ref: https://pierre3.hatenablog.com/entry/2014/04/07/000222
@@ -168,7 +168,7 @@ namespace NativeStringCollections.Test
                 call_count = 0;
                 while (!reader.EndOfStream)
                 {
-                    reader.ReadBuffer(_readData, true);
+                    reader.ReadBuffer(_readData);
 
                     sb.Clear();
                     sb.Append("    call count = " + call_count.ToString() + "\n");
@@ -200,7 +200,7 @@ namespace NativeStringCollections.Test
                 call_count = 0;
                 while (!reader.EndOfStream)
                 {
-                    reader.ReadLine(_readData, true);
+                    reader.ReadLine(_readData);
                     for (int i = 0; i < LineFactor.Length; i++)
                     {
                         _readData.Add(LineFactor[i]);
@@ -226,93 +226,6 @@ namespace NativeStringCollections.Test
                     for (int i = 0; i < comp_report.Count; i++)
                     {
                         Debug.LogWarning("  !! " + comp_report[i]);
-                    }
-                }
-
-                // by ReadBufferAsync()
-                Debug.Log("  >> ReadBufferAsync() test >>");
-                _readData.Clear();
-                reader.Init(SampleDataPath, _encodings[_tgtEncoder]);  // reusable internal buffer by calling Init().
-                call_count = 0;
-                while (!reader.EndOfStream)
-                {
-                    Unity.Jobs.JobHandle handle = reader.ReadBufferAsync(_readData, true);
-                    handle.Complete();
-
-                    sb.Clear();
-                    sb.Append("    call count = " + call_count.ToString() + "\n");
-                    sb.Append("    _readData = [\n");
-                    foreach (char c in _readData)
-                    {
-                        sb.Append(" " + c);
-                    }
-                    sb.Append(" ]");
-                    Debug.Log(sb.ToString());
-
-                    call_count++;
-                }
-
-                //--- check result
-                check = check && this.EqualString(TestSeq, _readData, comp_report);
-                if (comp_report.Count > 0)
-                {
-                    for (int i = 0; i < comp_report.Count; i++)
-                    {
-                        Debug.LogWarning("  !! " + comp_report[i]);
-                    }
-                }
-                 /*
-                //  the API ReadLinesFromBufferAsync() and ReadLineAsync() are disabled.
-                // by ReadLinesFromBufferAsync()
-                Debug.Log("  >> ReadLinesFromBufferAsync() test >>");
-                _readData.Clear();
-                reader.Init(SampleDataPath, _encodings[_tgtEncoder]);  // reusable internal buffer by calling Init().
-                call_count = 0;
-                while (!reader.EndOfStream)
-                {
-                    var NSL_tmp = new NativeStringList(Allocator.Temp);
-                    Unity.Jobs.JobHandle handle = reader.ReadLinesFromBufferAsync(NSL_tmp, false);
-                    handle.Complete();
-
-                    foreach(var se in NSL_tmp)
-                    {
-                        foreach(char c in se)
-                        {
-                            _readData.Add(c);
-                        }
-                        for (int i = 0; i < LineFactor.Length; i++)
-                        {
-                            _readData.Add(LineFactor[i]);
-                        }
-                    }
-                    NSL_tmp.Dispose();
-
-                    sb.Clear();
-                    sb.Append("    call count = " + call_count.ToString() + "\n");
-                    sb.Append("    _readData = [\n");
-                    foreach (char c in _readData)
-                    {
-                        sb.Append(" " + c);
-                    }
-                    sb.Append(" ]");
-                    Debug.Log(sb.ToString());
-
-                    call_count++;
-                    if (call_count > 32)
-                    {
-                        Debug.LogWarning("  ++ break while loop to avoid infinit loop.");
-                        break;
-                    }
-                }
-                */
-
-                //--- check result
-                check = check && this.EqualString(TestSeq, _readData, comp_report);
-                if (comp_report.Count > 0)
-                {
-                    for (int i = 0; i < comp_report.Count; i++)
-                    {
-                        Debug.LogWarning("  " + comp_report[i]);
                     }
                 }
 

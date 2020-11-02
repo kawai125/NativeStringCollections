@@ -145,6 +145,14 @@ namespace NativeStringCollections
             this.CheckElemIndex(index);
             return this[index];
         }
+        public StringEntity Last
+        {
+            get
+            {
+                int index = this.Length - 1;
+                return this[index];
+            }
+        }
         unsafe public string SubString(int index)
         {
             var elem_index = this.elemIndexList[index];

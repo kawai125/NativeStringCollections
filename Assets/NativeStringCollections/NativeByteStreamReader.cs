@@ -11,7 +11,7 @@ namespace NativeStringCollections.Impl
 {
     using NativeStringCollections.Utility;
 
-    [StructLayout(LayoutKind.Auto)]
+
     internal struct ByteStreamReaderInfo
     {
         public long fileSize;
