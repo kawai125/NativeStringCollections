@@ -24,7 +24,7 @@ public class Test_String_SpliterAndStripper : MonoBehaviour
 
     }
 
-    public void OnClickStringSpliterTest()
+    public void OnClickStringSplitterTest()
     {
         string str_source = " 1234567890@@0987654321^^ 1234567\t890 # ";
 
@@ -130,7 +130,7 @@ public class Test_String_SpliterAndStripper : MonoBehaviour
         // split by struct StringStripper()
         Debug.Log("== Test: split by struct StringStripper().");
 
-        StringSpliter spliter = new StringSpliter(Allocator.TempJob);
+        StringSplitter spliter = new StringSplitter(Allocator.TempJob);
         spliter.AddDelim("@@");
         spliter.AddDelim("678");
         spliter.AddDelim("8");
@@ -143,12 +143,12 @@ public class Test_String_SpliterAndStripper : MonoBehaviour
         ref_list.Add("654321^^ 1234567\t");
         ref_list.Add("90 # ");
 
-        Debug.Log("  >> try StringSpliter.Split(NativeList<char>, result) >>");
+        Debug.Log("  >> try StringSplitter.Split(NativeList<char>, result) >>");
         NSL_result.Clear();
         spliter.Split(NL_source, NSL_result);
         this.CheckSpliterResult(NSL_result, ref_list);
 
-        Debug.Log("  >> try StringSpliter.Split(StringEntity, result) >>");
+        Debug.Log("  >> try StringSplitter.Split(StringEntity, result) >>");
         NSL_result.Clear();
         spliter.Split(SE_source, NSL_result);
         this.CheckSpliterResult(NSL_result, ref_list);

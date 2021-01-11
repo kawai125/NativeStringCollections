@@ -17,17 +17,21 @@ namespace NativeStringCollections
     {
         void Init();
         void Clear();
-        void ParseLine(ReadOnlyStringEntity line);
+        bool ParseLine(ReadOnlyStringEntity line);
         void PostReadProc();
         void UnLoad();
     }
 
     public enum ReadJobState
     {
+        // not in process
         UnLoaded,
+        Completed,
+
+        // in process
         ReadAsync,
         ParseText,
-        Completed,
+        PostProc,
     }
     public struct ReadState
     {
@@ -35,14 +39,18 @@ namespace NativeStringCollections
         public int Length { get; }
         public int Read { get; }
         public int RefCount { get; }
-        public long DelayReadAsync { get; }
-        public long DelayParseText { get; }
+        public double DelayReadAsync { get; }
+        public double DelayParseText { get; }
+        public double DelayPostProc { get; }
 
 
-        public long Delay { get { return DelayReadAsync + DelayParseText; } }
+        public double Delay { get { return DelayReadAsync + DelayParseText + DelayPostProc; } }
         public bool IsCompleted { get { return (State == ReadJobState.Completed); } }
 
-        public ReadState(ReadJobState state, int len, int read, int ref_count, long delay_read_async, long delay_parse_text)
+        public ReadState(ReadJobState state, int len, int read, int ref_count,
+            double delay_read_async,
+            double delay_parse_text,
+            double delay_post_proc)
         {
             State = state;
             Length = len;
@@ -50,6 +58,7 @@ namespace NativeStringCollections
             RefCount = ref_count;
             DelayReadAsync = delay_read_async;
             DelayParseText = delay_parse_text;
+            DelayPostProc = delay_post_proc;
         }
     }
 
@@ -222,7 +231,7 @@ namespace NativeStringCollections
         {
             get
             {
-                if (!_state[fileIndex].Target->IsCompleted) throw new InvalidOperationException("roading file is not completed.");
+                if (!_state[fileIndex].Target->IsCompleted) throw new InvalidOperationException("loading file is not completed.");
                 return _data[fileIndex];
             }
         }
@@ -261,7 +270,7 @@ namespace NativeStringCollections
             {
                 var job_info = _runningJob[i];
                 var read_state = _state[job_info.FileIndex];
-                if (read_state.Target->DelayParseText >= 0)
+                if (read_state.Target->DelayPostProc >= 0.0)
                 {
                     _parserPool[job_info.ParserID].Complete();
                     read_state.Target->State = ReadJobState.Completed;
@@ -377,11 +386,11 @@ namespace NativeStringCollections
                 }
             }
 
-            throw new InvalidOperationException("key '_gen' was spent. internal error.");
+            throw new InvalidOperationException("Internal error: key '_gen' was spent.");
         }
         private void ReleaseParser(int parser_id)
         {
-            if (!_parserPool.ContainsKey(parser_id)) throw new InvalidOperationException("try to release invalid parser.");
+            if (!_parserPool.ContainsKey(parser_id)) throw new InvalidOperationException("Internal error: release invalid parser.");
 
             if (_parserPool.Count < _maxJobCount)
             {
@@ -406,8 +415,9 @@ namespace NativeStringCollections
             public int Read;
             public int RefCount;
 
-            public long DelayReadAsync;
-            public long DelayParseText;
+            public double DelayReadAsync;
+            public double DelayParseText;
+            public double DelayPostProc;
 
             public int ParserID;
             public JobHandle JobHandle;
@@ -424,11 +434,12 @@ namespace NativeStringCollections
 
                 DelayReadAsync = -1;
                 DelayParseText = -1;
+                DelayPostProc = -1;
             }
             public bool IsCompleted { get { return (State == ReadJobState.Completed); } }
             public ReadState GetState()
             {
-                return new ReadState(State, Length, Read, RefCount, DelayReadAsync, DelayParseText);
+                return new ReadState(State, Length, Read, RefCount, DelayReadAsync, DelayParseText, DelayPostProc);
             }
         }
 
@@ -464,6 +475,7 @@ namespace NativeStringCollections
 
             private PtrHandle<ParseJobInfo> _info;
             private GCHandle<System.Diagnostics.Stopwatch> _timer;
+            private double _timer_ms_coef;
 
             public ParseJob(Allocator alloc)
             {
@@ -492,6 +504,7 @@ namespace NativeStringCollections
                 _info.Target->jobHandle = new JobHandle();
 
                 _timer = new GCHandle<System.Diagnostics.Stopwatch>();
+                _timer_ms_coef = 1.0;
             }
             public void Dispose()
             {
@@ -547,13 +560,15 @@ namespace NativeStringCollections
                 _state_ptr = state_ptr;
                 _state_ptr.Target->State = ReadJobState.ReadAsync;
                 _state_ptr.Target->DelayReadAsync = -1;
-                _state_ptr.Target->DelayParseText = -1;   // Loader check 'DelayParseText' value >= 0 or not to calling 'Complete()'.
+                _state_ptr.Target->DelayParseText = -1;
+                _state_ptr.Target->DelayPostProc = -1;   // Loader will check 'DelayPostProc' value >= 0 or not to calling 'Complete()'.
 
                 _info.Target->checkPreamble = true;
                 _info.Target->disposeHandle = true;
 
                 _timer.Create(new System.Diagnostics.Stopwatch());
                 _timer.Target.Start();
+                _timer_ms_coef = 1000000.0 / System.Diagnostics.Stopwatch.Frequency;
 
                 var job_byteReader = _byteReader.ReadFileAsync(path);
                 _info.Target->jobHandle = this.Schedule(job_byteReader);
@@ -573,7 +588,7 @@ namespace NativeStringCollections
             public void Execute()
             {
                 // read async is completed
-                _state_ptr.Target->DelayReadAsync = _timer.Target.ElapsedMilliseconds;
+                _state_ptr.Target->DelayReadAsync = this.TimerElapsedMicroSeconds();
                 _timer.Target.Restart();
 
                 // initialize
@@ -594,7 +609,21 @@ namespace NativeStringCollections
                 _continueBuff.Clear();
 
                 // parse text
+                this.ParseText();
+                _state_ptr.Target->DelayParseText = this.TimerElapsedMicroSeconds();
+                _timer.Target.Restart();
+
+                // post proc
+                _data.Target.PostReadProc();
+                _timer.Target.Stop();
+
+                _state_ptr.Target->DelayPostProc = this.TimerElapsedMicroSeconds();
+                this.DisposeHandle();
+            }
+            private void ParseText()
+            {
                 _data.Target.Clear();
+                Boolean continue_flag = true;
                 for (int pos = 0; pos < _info.Target->blockNum; pos++)
                 {
                     _info.Target->blockPos = pos;
@@ -604,18 +633,17 @@ namespace NativeStringCollections
                     this.ParseLinesFromBuffer();
                     foreach (var str in _lines)
                     {
-                        _data.Target.ParseLine(str.GetReadOnlyEntity());
+                        continue_flag = _data.Target.ParseLine(str.GetReadOnlyEntity());
+
+                        // abort
+                        if (!continue_flag)
+                        {
+                            return;
+                        }
                     }
 
                     _state_ptr.Target->Read = pos;
                 }
-
-                // finalize
-                _data.Target.PostReadProc();
-                _timer.Target.Stop();
-
-                _state_ptr.Target->DelayParseText = _timer.Target.ElapsedMilliseconds;
-                this.DisposeHandle();
             }
 
             private unsafe bool IsPreamble()
@@ -640,7 +668,7 @@ namespace NativeStringCollections
                 int byte_len = Math.Min(_info.Target->decodeBlock, (int)(_byteReader.Length - byte_pos));
                 byte_pos += byte_offset;
                 byte_len -= byte_offset;
-                if (byte_len < 0) throw new InvalidOperationException("internal error");
+                if (byte_len < 0) throw new InvalidOperationException("Internal error: invalid buffer size.");
 
                 byte* byte_ptr = (byte*)_byteReader.GetUnsafePtr() + byte_pos;
                 int char_len = _decoder.Target.GetCharCount(byte_ptr, byte_len, false);
@@ -741,6 +769,10 @@ namespace NativeStringCollections
                     _charBuff.Clear();
                 }
                 return line_count;
+            }
+            private double TimerElapsedMicroSeconds()
+            {
+                return _timer.Target.ElapsedTicks * _timer_ms_coef;
             }
         }
     }
