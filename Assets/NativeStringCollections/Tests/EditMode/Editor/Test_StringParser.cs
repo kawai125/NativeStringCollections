@@ -580,7 +580,7 @@ namespace Tests
             var bytes_decoded = new NativeList<byte>(Allocator.Persistent);
 
             var b64_encoder = new NativeBase64Encoder(Allocator.Persistent);
-            var b64_decorder = new NativeBase64Decoder(Allocator.Persistent);
+            var b64_decoder = new NativeBase64Decoder(Allocator.Persistent);
 
             foreach (var str_ref in str_list)
             {
@@ -599,12 +599,12 @@ namespace Tests
                 b64_encoder.Clear();
                 b64_encoder.GetChars(encoded_native, bytes_native);
 
-                CheckBase64EncordedStr(encoded_native, encoded_ref, true);
+                CheckBase64EncodedStr(encoded_native, encoded_ref, true);
 
-                b64_decorder.Clear();
-                b64_decorder.GetBytes(bytes_decoded, encoded_native);
+                b64_decoder.Clear();
+                b64_decoder.GetBytes(bytes_decoded, encoded_native);
 
-                CheckBase64DecorrdedBytes(bytes_decoded, bytes_ref, true);
+                CheckBase64DecodedBytes(bytes_decoded, bytes_ref, true);
             }
 
             bytes_native.Dispose();
@@ -612,7 +612,7 @@ namespace Tests
             bytes_decoded.Dispose();
 
             b64_encoder.Dispose();
-            b64_decorder.Dispose();
+            b64_decoder.Dispose();
         }
         [TestCase(1024)]
         public void CheckParseBase64_Random(int n)
@@ -625,7 +625,7 @@ namespace Tests
             var bytes_decoded = new NativeList<byte>(Allocator.Persistent);
 
             var b64_encoder = new NativeBase64Encoder(Allocator.Persistent);
-            var b64_decorder = new NativeBase64Decoder(Allocator.Persistent);
+            var b64_decoder = new NativeBase64Decoder(Allocator.Persistent);
 
             long total_bytes = 0;
             for(int i=0; i<n; i++)
@@ -642,11 +642,11 @@ namespace Tests
                     bytes_native.Add(b);
                 }
 
-                string encorded_ref = Convert.ToBase64String(bytes_ref);
+                string encoded_ref = Convert.ToBase64String(bytes_ref);
 
                 var sb = new StringBuilder();
                 int charcount = 0;
-                foreach (char c in encorded_ref)
+                foreach (char c in encoded_ref)
                 {
                     if (charcount == Base64InLine)
                     {
@@ -657,23 +657,23 @@ namespace Tests
                     sb.Append(c);
                     charcount++;
                 }
-                string encorded_ref_withLF = sb.ToString();
+                string encoded_ref_withLF = sb.ToString();
 
-                // test for encorded str with CRLF
+                // test for encoded str with CRLF
                 encoded_native.Clear();
                 bytes_decoded.Clear();
 
                 b64_encoder.Clear();
                 b64_encoder.GetChars(encoded_native, bytes_native);
 
-                CheckBase64EncordedStr(encoded_native, encorded_ref_withLF);
+                CheckBase64EncodedStr(encoded_native, encoded_ref_withLF);
 
-                b64_decorder.Clear();
-                b64_decorder.GetBytes(bytes_decoded, encoded_native);
+                b64_decoder.Clear();
+                b64_decoder.GetBytes(bytes_decoded, encoded_native);
 
-                CheckBase64DecorrdedBytes(bytes_decoded, bytes_ref);
+                CheckBase64DecodedBytes(bytes_decoded, bytes_ref);
 
-                // test for encorded str without CRLF
+                // test for encoded str without CRLF
                 encoded_native.Clear();
                 bytes_decoded.Clear();
 
@@ -682,12 +682,12 @@ namespace Tests
                 b64_encoder.GetChars(encoded_native, bytes_native);
                 b64_encoder.InsertLineBrakes = true;
 
-                CheckBase64EncordedStr(encoded_native, encorded_ref);
+                CheckBase64EncodedStr(encoded_native, encoded_ref);
 
-                b64_decorder.Clear();
-                b64_decorder.GetBytes(bytes_decoded, encoded_native);
+                b64_decoder.Clear();
+                b64_decoder.GetBytes(bytes_decoded, encoded_native);
 
-                CheckBase64DecorrdedBytes(bytes_decoded, bytes_ref);
+                CheckBase64DecodedBytes(bytes_decoded, bytes_ref);
             }
 
             Debug.Log("total test bytes: " + total_bytes.ToString() + " B\n");
@@ -697,9 +697,9 @@ namespace Tests
             bytes_decoded.Dispose();
 
             b64_encoder.Dispose();
-            b64_decorder.Dispose();
+            b64_decoder.Dispose();
         }
-        private void CheckBase64EncordedStr(NativeList<char> str_native, string str_ref, bool forceLog = false)
+        private void CheckBase64EncodedStr(NativeList<char> str_native, string str_ref, bool forceLog = false)
         {
             bool check_flag;
             var diff_list = new List<int>();
@@ -761,7 +761,7 @@ namespace Tests
             }
             Assert.IsTrue(check_flag);
         }
-        private void CheckBase64DecorrdedBytes(NativeList<byte> bytes_native, byte[] bytes_ref, bool forceLog = false)
+        private void CheckBase64DecodedBytes(NativeList<byte> bytes_native, byte[] bytes_ref, bool forceLog = false)
         {
             bool check_flag = (bytes_native.Length == bytes_ref.Length);
 

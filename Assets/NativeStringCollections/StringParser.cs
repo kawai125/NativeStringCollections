@@ -526,6 +526,9 @@ namespace NativeStringCollections
         }
     }
 
+    /// <summary>
+    /// The Encoder for MIME Base64 (RFC 2045).
+    /// </summary>
     public struct NativeBase64Encoder : IDisposable
     {
         private Base64EncodeMap _map;
@@ -542,19 +545,41 @@ namespace NativeStringCollections
         {
             _info.Target->Clear();
         }
+        /// <summary>
+        /// Inserting CRLF or not.
+        /// </summary>
         public unsafe bool InsertLineBrakes
         {
             get { return _info.Target->insertLF; }
             set { _info.Target->insertLF = value; }
         }
+        /// <summary>
+        /// convert bytes into chars in Base64 format.
+        /// </summary>
+        /// <param name="buff">output</param>
+        /// <param name="bytes">source</param>
+        /// <param name="splitData">additional bytes will be input or not. (false: call Terminate() internally.)</param>
         public unsafe void GetChars(NativeList<char> buff, NativeArray<byte> bytes, bool splitData = false)
         {
             this.GetChars(buff, (byte*)bytes.GetUnsafePtr(), bytes.Length, splitData);
         }
+        /// <summary>
+        /// convert bytes into chars in Base64 format.
+        /// </summary>
+        /// <param name="buff">output</param>
+        /// <param name="bytes">source</param>
+        /// <param name="splitData">additional bytes will be input or not. (false: call Terminate() internally.)</param>
         public unsafe void GetChars(NativeList<char> buff, NativeList<byte> bytes, bool splitData = false)
         {
             this.GetChars(buff, (byte*)bytes.GetUnsafePtr(), bytes.Length, splitData);
         }
+        /// <summary>
+        /// convert bytes into chars in Base64 format.
+        /// </summary>
+        /// <param name="buff">output</param>
+        /// <param name="byte_ptr">source ptr</param>
+        /// <param name="byte_len">source length</param>
+        /// <param name="splitData">additional bytes will be input or not. (false: call Terminate() internally.</param>
         public unsafe void GetChars(NativeList<char> buff, byte* byte_ptr, int byte_len, bool splitData = false)
         {
             if (byte_len < 0) throw new ArgumentOutOfRangeException("invalid bytes length.");
@@ -597,6 +622,10 @@ namespace NativeStringCollections
 
             if (!splitData) this.Terminate(buff);
         }
+        /// <summary>
+        /// apply termination treatment.
+        /// </summary>
+        /// <param name="buff">output</param>
         public unsafe void Terminate(NativeList<char> buff)
         {
             uint tmp = _info.Target->store;
@@ -629,6 +658,9 @@ namespace NativeStringCollections
             _info.Dispose();
         }
     }
+    /// <summary>
+    /// The Decoder for MIME Base64 (RFC 2045).
+    /// </summary>
     public struct NativeBase64Decoder : IDisposable
     {
         private Base64DecodeMap _map;
@@ -649,20 +681,43 @@ namespace NativeStringCollections
         {
             _info.Target->Clear();
         }
+        /// <summary>
+        /// convert Base64 format chars into bytes.
+        /// </summary>
+        /// <param name="buff">output</param>
+        /// <param name="str">source</param>
         public unsafe void GetBytes(NativeList<byte> buff, NativeArray<char> str)
         {
             this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
         }
+        /// <summary>
+        /// convert Base64 format chars into bytes.
+        /// </summary>
+        /// <param name="buff">output</param>
+        /// <param name="str">source</param>
         public unsafe void GetBytes(NativeList<byte> buff, NativeList<char> str)
         {
             this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
         }
+        /// <summary>
+        /// convert Base64 format chars into bytes.
+        /// </summary>
+        /// <param name="buff">output</param>
+        /// <param name="str">source</param>
         public unsafe void GetBytes(NativeList<byte> buff, IStringEntityBase str)
         {
             this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
         }
+        /// <summary>
+        /// convert Base64 format chars into bytes.
+        /// </summary>
+        /// <param name="buff">output</param>
+        /// <param name="char_ptr">source ptr</param>
+        /// <param name="char_len">source length</param>
         public unsafe void GetBytes(NativeList<byte> buff, char* char_ptr, int char_len)
         {
+            if (char_len < 0) throw new ArgumentOutOfRangeException("invalid chars length.");
+
             uint store = _info.Target->store;
             int bytePos = _info.Target->bytePos;
 
