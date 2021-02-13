@@ -2,7 +2,7 @@
 //#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
 
 using System;
-using System.Linq;
+using System.Text;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -15,6 +15,7 @@ using Unity.Collections.LowLevel.Unsafe;
 namespace NativeStringCollections
 {
     using NativeStringCollections.Impl;
+    using NativeStringCollections.Utility;
 
 
     public enum Endian
@@ -512,6 +513,241 @@ namespace NativeStringCollections
         }
     }
 
+    internal struct Base64Info
+    {
+        public uint store;
+        public int bytePos;
+        public Boolean insertLF;
+
+        public void Clear()
+        {
+            store = 0;
+            bytePos = 0;
+        }
+    }
+
+    public struct NativeBase64Encoder : IDisposable
+    {
+        private Base64EncodeMap _map;
+        private PtrHandle<Base64Info> _info;
+
+        public unsafe NativeBase64Encoder(Allocator alloc)
+        {
+            _map = new Base64EncodeMap(alloc);
+            _info = new PtrHandle<Base64Info>(alloc);
+            _info.Target->Clear();
+            _info.Target->insertLF = true;
+        }
+        public unsafe void Clear()
+        {
+            _info.Target->Clear();
+        }
+        public unsafe bool InsertLineBrakes
+        {
+            get { return _info.Target->insertLF; }
+            set { _info.Target->insertLF = value; }
+        }
+        public unsafe void GetChars(NativeList<char> buff, NativeArray<byte> bytes, bool splitData = false)
+        {
+            this.GetChars(buff, (byte*)bytes.GetUnsafePtr(), bytes.Length, splitData);
+        }
+        public unsafe void GetChars(NativeList<char> buff, NativeList<byte> bytes, bool splitData = false)
+        {
+            this.GetChars(buff, (byte*)bytes.GetUnsafePtr(), bytes.Length, splitData);
+        }
+        public unsafe void GetChars(NativeList<char> buff, byte* byte_ptr, int byte_len, bool splitData = false)
+        {
+            if (byte_len < 0) throw new ArgumentOutOfRangeException("invalid bytes length.");
+
+            uint store = _info.Target->store;
+            int bytePos = _info.Target->bytePos;
+
+            int charcount = 0;
+            for(uint i=0; i<byte_len; i++)
+            {
+                if (_info.Target->insertLF)
+                {
+                    if (charcount == Base64Const.LineBreakPos)
+                    {
+                        buff.Add('\r');
+                        buff.Add('\n');
+                        charcount = 0;
+                    }
+                }
+
+                store = (store << 8) | byte_ptr[i];
+                bytePos++;
+
+                // encoding 3 bytes -> 4 chars
+                if(bytePos == 3)
+                {
+                    buff.Add(_map[(store & 0xfc0000) >> 18]);
+                    buff.Add(_map[(store & 0x03f000) >> 12]);
+                    buff.Add(_map[(store & 0x000fc0) >>  6]);
+                    buff.Add(_map[(store & 0x00003f)]);
+                    charcount += 4;
+
+                    store = 0;
+                    bytePos = 0;
+                }
+            }
+
+            _info.Target->store = store;
+            _info.Target->bytePos = bytePos;
+
+            if (!splitData) this.Terminate(buff);
+        }
+        public unsafe void Terminate(NativeList<char> buff)
+        {
+            uint tmp = _info.Target->store;
+            switch (_info.Target->bytePos)
+            {
+                case 0:
+                    // do nothing
+                    break;
+                case 1:
+                    // two character padding needed
+                    buff.Add(_map[(tmp & 0xfc) >> 2]);
+                    buff.Add(_map[(tmp & 0x03) << 4]);
+                    buff.Add(_map[64]);  // pad
+                    buff.Add(_map[64]);  // pad
+                    break;
+                case 2:
+                    // one character padding needed
+                    buff.Add(_map[(tmp & 0xfc00) >> 10]);
+                    buff.Add(_map[(tmp & 0x03f0) >>  4]);
+                    buff.Add(_map[(tmp & 0x000f) <<  2]);
+                    buff.Add(_map[64]);  // pad
+                    break;
+            }
+            _info.Target->store = 0;
+            _info.Target->bytePos = 0;
+        }
+        public void Dispose()
+        {
+            _map.Dispose();
+            _info.Dispose();
+        }
+    }
+    public struct NativeBase64Decoder : IDisposable
+    {
+        private Base64DecodeMap _map;
+        private PtrHandle<Base64Info> _info;
+
+        public unsafe NativeBase64Decoder(Allocator alloc)
+        {
+            _map = new Base64DecodeMap(alloc);
+            _info = new PtrHandle<Base64Info>(alloc);
+            _info.Target->Clear();
+        }
+        public void Dispose()
+        {
+            _map.Dispose();
+            _info.Dispose();
+        }
+        public unsafe void Clear()
+        {
+            _info.Target->Clear();
+        }
+        public unsafe void GetBytes(NativeList<byte> buff, NativeArray<char> str)
+        {
+            this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
+        }
+        public unsafe void GetBytes(NativeList<byte> buff, NativeList<char> str)
+        {
+            this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
+        }
+        public unsafe void GetBytes(NativeList<byte> buff, IStringEntityBase str)
+        {
+            this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
+        }
+        public unsafe void GetBytes(NativeList<byte> buff, char* char_ptr, int char_len)
+        {
+            uint store = _info.Target->store;
+            int bytePos = _info.Target->bytePos;
+
+            for(int i=0; i<char_len; i++)
+            {
+                char c = char_ptr[i];
+                if (this.IsWhiteSpace(c)) continue;
+
+                if(c == '=')
+                {
+                    switch (bytePos)
+                    {
+                        case 0:
+                        case 1:
+                            
+                            /*
+                            var sb = new StringBuilder();
+                            sb.Append("bytePos = " + bytePos.ToString() + '\n');
+                            sb.Append("i = " + i.ToString() + "\n\n");
+                            sb.Append("decoded:\n");
+                            for(int j=0; j<buff.Length; j++)
+                            {
+                                sb.Append(buff[j].ToString() + ' ');
+                            }
+                            sb.Append('\n');
+                            sb.Append("currect char: " + c + '\n');
+                            sb.Append("left char: " + c + '\n');
+                            int c_count = 0;
+                            for (int j=i+1; j<char_len; j++)
+                            {
+                                sb.Append(char_ptr[j]);
+                                c_count++;
+                                if(c_count == 16)
+                                {
+                                    sb.Append('\n');
+                                    c_count = 0;
+                                }
+                            }
+                            sb.Append('\n');
+                            UnityEngine.Debug.Log(sb);
+                            */
+
+                            throw new ArgumentException("invalid padding detected.");
+                            //break;
+                        case 2:
+                            // pick 1 byte from "**==" code
+                            buff.Add((byte)((store & 0x0ff0) >> 4));
+                            bytePos = 0;
+                            break;
+                        case 3:
+                            // pick 2 byte from "***=" code
+                            buff.Add((byte)((store & 0x03fc00) >> 10));
+                            buff.Add((byte)((store & 0x0003fc) >>  2));
+                            bytePos = 0;
+                            break;
+                    }
+                    return;
+                }
+                else
+                {
+                    uint b = _map[c];
+                    if (b != 255)
+                    {
+                        store = (store << 6) | (b & 0x3f);
+                        bytePos++;
+                    }
+                }
+
+                if(bytePos == 4)
+                {
+                    buff.Add((byte)((store & 0xff0000) >> 16));
+                    buff.Add((byte)((store & 0x00ff00) >>  8));
+                    buff.Add((byte)((store & 0x0000ff)));
+                    store = 0;
+                    bytePos = 0;
+                }
+            }
+            _info.Target->store = store;
+            _info.Target->bytePos = bytePos;
+        }
+        private bool IsWhiteSpace(char c)
+        {
+            return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
+        }
+    }
 
     namespace Impl
     {
@@ -577,6 +813,166 @@ namespace NativeStringCollections
             {
                 return c - '0';
             }
+        }
+
+        static class Base64Ext
+        {
+            public static bool ByteToBase64Char(this byte b, out char c)
+            {
+                c = ' ';
+                if (b >= 64) return false;
+
+                if(b <= 25)
+                {
+                    c = (char)('A' + b);
+                }
+                else if( b <= 51)
+                {
+                    c = (char)('a' + b);
+                }
+                else if(b <= 61)
+                {
+                    c = (char)('0' + (b - 52));
+                }
+                else if(b == 62)
+                {
+                    c = '+';
+                }
+                else if(b == 63)
+                {
+                    c = '/';
+                }
+                else
+                {
+                    return false;
+                }
+                return true;
+            }
+            public static bool Base64CharToByte(this char c, out byte b)
+            {
+                b = 0;
+
+                if('A' <= c && c <= 'Z')
+                {
+                    b = (byte)(c - 'A');
+                }
+                else if('a' <= c && c <= 'z')
+                {
+                    b = (byte)(c - 'a' + 26);
+                }
+                else if ('0' <= c && c <= '9')
+                {
+                    b = (byte)(c - '0' + 52);
+                }
+                else if (c == '+')
+                {
+                    b = 62;
+                }
+                else if (c == '/')
+                {
+                    b = 63;
+                }
+                else
+                {
+                    return false;
+                }
+
+                return true;
+            }
+        }
+
+        internal struct Base64EncodeMap : IDisposable
+        {
+            private NativeArray<byte> _map;
+
+            public Base64EncodeMap(Allocator alloc)
+            {
+                _map = new NativeArray<byte>(65, alloc);
+
+                int i = 0;
+                for(byte j=65; j<=90; j++)  // 'A' ~ 'Z'
+                {
+                    _map[i] = j;
+                    i++;
+                }
+                for(byte j=97; j<=122; j++) // 'a' ~ 'z'
+                {
+                    _map[i] = j;
+                    i++;
+                }
+                for(byte j=48; j<=57; j++)  // '0' ~ '9'
+                {
+                    _map[i] = j;
+                    i++;
+                }
+                _map[i] = 43; i++; // '+'
+                _map[i] = 47; i++; // '/'
+                _map[i] = 61;      // '='
+            }
+            public void Dispose()
+            {
+                _map.Dispose();
+            }
+            public char this[uint index]
+            {
+                get
+                {
+                    if (index > 65) throw new ArgumentOutOfRangeException("input byte must be in range [0x00, 0x40].");
+                    return (char)_map[(int)index];
+                }
+            }
+        }
+        internal struct Base64DecodeMap : IDisposable
+        {
+            private NativeArray<byte> _map;
+            public Base64DecodeMap(Allocator alloc)
+            {
+                _map = new NativeArray<byte>(80, alloc);
+
+                int i = 0;
+                _map[i] = 62; i++;       // 0x2b, '+'
+                for(int j=0; j<3; j++)
+                {
+                    _map[i] = 255; i++;  // invalid code
+                }
+                _map[i] = 63; i++;       // 0x2f, '/'
+                for(byte j=52; j<=61; j++)
+                {
+                    _map[i] = j; i++;    // '0' ~ '9'
+                }
+                for(byte j=0; j<7; j++)
+                {
+                    _map[i] = 255; i++;  // invalid code
+                }
+                for(byte j=0; j<=25; j++)
+                {
+                    _map[i] = j; i++;    // 'A' ~ 'Z'
+                }
+                for(byte j=0; j<6; j++)
+                {
+                    _map[i] = 255; i++;  // invalid code
+                }
+                for (byte j = 26; j <= 51; j++)
+                {
+                    _map[i] = j; i++;    // 'a' ~ 'z'
+                }
+            }
+            public void Dispose()
+            {
+                _map.Dispose();
+            }
+
+            public byte this[uint index]
+            {
+                get
+                {
+                    if (index < 0x2b) return 255;
+                    if (index > 0x7a) return 255;
+
+                    return _map[(int)(index - 0x2b)];
+                }
+            }
+
         }
     }
 }

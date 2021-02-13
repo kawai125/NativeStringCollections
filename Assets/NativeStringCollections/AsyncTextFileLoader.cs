@@ -15,10 +15,31 @@ namespace NativeStringCollections
 
     public interface ITextFileParser
     {
+        /// <summary>
+        /// called once at the first in main thread (you can use managed object in this function).
+        /// </summary>
         void Init();
+
+        /// <summary>
+        /// called every time at first on reading file.
+        /// </summary>
         void Clear();
+
+        /// <summary>
+        /// when you returned 'false', the AsyncTextFileLoader discontinue calling the 'ParseLine()' and jump to calling 'PostReadProc()'.
+        /// </summary>
+        /// <param name="line">the string of a line.</param>
+        /// <returns>continue reading lines or not.</returns>
         bool ParseLine(ReadOnlyStringEntity line);
+
+        /// <summary>
+        /// called every time at last on reading file.
+        /// </summary>
         void PostReadProc();
+
+        /// <summary>
+        /// called when the AsyncTextFileLoader.UnLoadFile(index) function was called.
+        /// </summary>
         void UnLoad();
     }
 
@@ -188,13 +209,7 @@ namespace NativeStringCollections
             {
                 if(value > 0)
                 {
-                    int n_add = value - _maxJobCount;
                     _maxJobCount = value;
-
-                    if(n_add > 0)
-                    {
-                        for (int i = 0; i < n_add; i++) this.GenerateParser();
-                    }
                 }
             }
         }
@@ -231,7 +246,8 @@ namespace NativeStringCollections
         {
             get
             {
-                if (!_state[fileIndex].Target->IsCompleted) throw new InvalidOperationException("loading file is not completed.");
+                if (!_state[fileIndex].Target->IsCompleted)
+                    throw new InvalidOperationException("the read job running now.");
                 return _data[fileIndex];
             }
         }
@@ -270,7 +286,7 @@ namespace NativeStringCollections
             {
                 var job_info = _runningJob[i];
                 var read_state = _state[job_info.FileIndex];
-                if (read_state.Target->DelayPostProc >= 0.0)
+                if (read_state.Target->JobHandle.IsCompleted)
                 {
                     _parserPool[job_info.ParserID].Complete();
                     read_state.Target->State = ReadJobState.Completed;
@@ -343,12 +359,14 @@ namespace NativeStringCollections
             _updateQueueTmp.Clear();
 
             // schedule jobs
-            //--- supply parsers for flushing all jobs.
-            if (flush_all_jobs)
+            //--- supply parsers
+            int n_add_parser = Math.Max(_updateLoadTgtTmp.Length - _parserAvail.Count, 0);
+            if (!flush_all_jobs)
             {
-                int n_add_parser = _updateLoadTgtTmp.Length - _parserAvail.Count;
-                for (int i = 0; i < n_add_parser; i++) this.GenerateParser();
+                n_add_parser = Math.Min(this.MaxJobCount - _parserPool.Count, n_add_parser);
             }
+            for (int i = 0; i < n_add_parser; i++) this.GenerateParser();
+
             //--- run jobs
             int n_job = Math.Min(_parserAvail.Count, _updateLoadTgtTmp.Length);
             for(int i=0; i<n_job; i++)
@@ -360,6 +378,7 @@ namespace NativeStringCollections
                 p_tmp.BlockSize = _blockSize;
                 p_tmp.ReadFileAsync(_fileList[file_index], _encoding, _data[file_index], p_state);
             }
+
             //--- write back excessive queue
             for(int i=n_job; i<_updateLoadTgtTmp.Length; i++)
             {
@@ -370,8 +389,6 @@ namespace NativeStringCollections
 
         private void GenerateParser()
         {
-            if (_parserPool.Count >= _maxJobCount) return;
-
             for(int i=0; i<Define.NumParserLimit; i++)
             {
                 _gen++;
@@ -436,7 +453,13 @@ namespace NativeStringCollections
                 DelayParseText = -1;
                 DelayPostProc = -1;
             }
-            public bool IsCompleted { get { return (State == ReadJobState.Completed); } }
+            public bool IsCompleted
+            {
+                get
+                {
+                    return (State == ReadJobState.Completed) || (State == ReadJobState.UnLoaded);
+                }
+            }
             public ReadState GetState()
             {
                 return new ReadState(State, Length, Read, RefCount, DelayReadAsync, DelayParseText, DelayPostProc);
@@ -471,9 +494,9 @@ namespace NativeStringCollections
             private NativeStringList _lines;
 
             GCHandle<Tdata> _data;
-            PtrHandle<ReadStateImpl> _state_ptr;
+            PtrHandle<ReadStateImpl> _state_ptr;    // monitoring state from main thread
 
-            private PtrHandle<ParseJobInfo> _info;
+            private PtrHandle<ParseJobInfo> _info;  // internal use
             private GCHandle<System.Diagnostics.Stopwatch> _timer;
             private double _timer_ms_coef;
 
@@ -489,7 +512,7 @@ namespace NativeStringCollections
                 _lines = new NativeStringList(alloc);
 
                 _data = new GCHandle<Tdata>();
-                _state_ptr = new PtrHandle<ReadStateImpl>();  // do not allocate (this will be assigned). use as reference.
+                _state_ptr = new PtrHandle<ReadStateImpl>();  // do not allocate (this will be assigned). used as reference.
 
                 _info = new PtrHandle<ParseJobInfo>(alloc);
 
@@ -561,7 +584,7 @@ namespace NativeStringCollections
                 _state_ptr.Target->State = ReadJobState.ReadAsync;
                 _state_ptr.Target->DelayReadAsync = -1;
                 _state_ptr.Target->DelayParseText = -1;
-                _state_ptr.Target->DelayPostProc = -1;   // Loader will check 'DelayPostProc' value >= 0 or not to calling 'Complete()'.
+                _state_ptr.Target->DelayPostProc = -1;
 
                 _info.Target->checkPreamble = true;
                 _info.Target->disposeHandle = true;

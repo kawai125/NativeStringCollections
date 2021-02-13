@@ -18,7 +18,8 @@ namespace NativeStringCollections
     public static class StringStripperExt
     {
 
-        private unsafe static T StripWhiteSpaceImpl<T>(T source, bool left, bool right) where T : IStringEntityBase
+        private unsafe static T StripWhiteSpaceImpl<T>(T source, bool left, bool right)
+            where T : IStringEntityBase, ISlice<T>
         {
             // L side
             int start = 0;
@@ -60,7 +61,8 @@ namespace NativeStringCollections
                 return (T)source.Slice(0,0);
             }
         }
-        private unsafe static T StripCharImpl<T>(T source, char target, bool left, bool right) where T : IStringEntityBase
+        private unsafe static T StripCharImpl<T>(T source, char target, bool left, bool right)
+            where T : IStringEntityBase, ISlice<T>
         {
             // L side
             int start = 0;
@@ -104,7 +106,8 @@ namespace NativeStringCollections
         }
         private unsafe static T StripStringImpl<T>(T source,
                                                    IStringEntityBase target,
-                                                   bool left, bool right) where T : IStringEntityBase
+                                                   bool left, bool right)
+            where T : IStringEntityBase, ISlice<T>
         {
             // L side
             int start = 0;
@@ -181,7 +184,8 @@ namespace NativeStringCollections
         /// <typeparam name="T"></typeparam>
         /// <param name="source"></param>
         /// <returns></returns>
-        public unsafe static T Lstrip<T>(this T source) where T : IStringEntityBase
+        public unsafe static T Lstrip<T>(this T source)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, true, false);
         }
@@ -191,7 +195,8 @@ namespace NativeStringCollections
         /// <typeparam name="T"></typeparam>
         /// <param name="source"></param>
         /// <returns></returns>
-        public unsafe static T Rstrip<T>(this T source) where T : IStringEntityBase
+        public unsafe static T Rstrip<T>(this T source)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, false, true);
         }
@@ -201,7 +206,8 @@ namespace NativeStringCollections
         /// <typeparam name="T"></typeparam>
         /// <param name="source"></param>
         /// <returns></returns>
-        public unsafe static T Strip<T>(this T source) where T : IStringEntityBase
+        public unsafe static T Strip<T>(this T source)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, true, true);
         }
@@ -212,7 +218,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Lstrip<T>(this T source, char target) where T : IStringEntityBase
+        public unsafe static T Lstrip<T>(this T source, char target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripCharImpl(source, target, true, false);
         }
@@ -223,7 +230,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Rstrip<T>(this T source, char target) where T : IStringEntityBase
+        public unsafe static T Rstrip<T>(this T source, char target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripCharImpl(source, target, false, true);
         }
@@ -234,7 +242,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Strip<T>(this T source, char target) where T : IStringEntityBase
+        public unsafe static T Strip<T>(this T source, char target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripCharImpl(source, target, true, true);
         }
@@ -245,7 +254,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Lstrip<T>(this T source, NativeList<char> target) where T : IStringEntityBase
+        public unsafe static T Lstrip<T>(this T source, NativeList<char> target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), true, false);
         }
@@ -256,7 +266,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Rstrip<T>(this T source, NativeList<char> target) where T : IStringEntityBase
+        public unsafe static T Rstrip<T>(this T source, NativeList<char> target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), false, true);
         }
@@ -267,7 +278,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Strip<T>(this T source, NativeList<char> target) where T : IStringEntityBase
+        public unsafe static T Strip<T>(this T source, NativeList<char> target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), true, true);
         }
@@ -278,7 +290,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Lstrip<T>(this T source, IStringEntityBase target) where T : IStringEntityBase
+        public unsafe static T Lstrip<T>(this T source, IStringEntityBase target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripStringImpl(source, target, true, false);
         }
@@ -289,7 +302,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Rstrip<T>(this T source, IStringEntityBase target) where T : IStringEntityBase
+        public unsafe static T Rstrip<T>(this T source, IStringEntityBase target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripStringImpl(source, target, false, true);
         }
@@ -300,7 +314,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Strip<T>(this T source, IStringEntityBase target) where T : IStringEntityBase
+        public unsafe static T Strip<T>(this T source, IStringEntityBase target)
+            where T : IStringEntityBase, ISlice<T>
         {
             return StripStringImpl(source, target, true, true);
         }

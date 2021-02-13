@@ -22,12 +22,18 @@ namespace NativeStringCollections.Utility
 
         public PtrHandle(Allocator alloc)
         {
+            if (alloc <= Allocator.None)
+                throw new ArgumentException("Allocator must be Temp, TempJob or Persistent", nameof(alloc));
+
             _alloc = alloc;
             _ptr = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>(), UnsafeUtility.AlignOf<T>(), _alloc);
             _isCreated = true;
         }
         public PtrHandle(T value, Allocator alloc)
         {
+            if (alloc <= Allocator.None)
+                throw new ArgumentException("Allocator must be Temp, TempJob or Persistent", nameof(alloc));
+
             _alloc = alloc;
             _ptr = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>(), UnsafeUtility.AlignOf<T>(), _alloc);
             _isCreated = true;
@@ -47,11 +53,13 @@ namespace NativeStringCollections.Utility
         {
             if (IsCreated)
             {
+                this.CheckAllocator();
                 UnsafeUtility.Free((void*)_ptr, _alloc);
+                _ptr = null;
             }
             else
             {
-                throw new InvalidOperationException("Dispose() was twise, or not initialized target.");
+                throw new InvalidOperationException("Dispose() was called twise, or not initialized target.");
             }
         }
 
@@ -70,6 +78,12 @@ namespace NativeStringCollections.Utility
         }
 
         public static implicit operator T(PtrHandle<T> value) { return *value._ptr; }
+
+        private void CheckAllocator()
+        {
+            if (!UnsafeUtility.IsValidAllocator(_alloc))
+                throw new InvalidOperationException("The buffer can not be Disposed because it was not allocated with a valid allocator.");
+        }
     }
 }
 

@@ -24,8 +24,8 @@ namespace NativeStringCollections.Impl
 
     public unsafe struct AsyncByteReader : IDisposable
     {
+        private NativeArray<byte> _byteBuffer;
         private PtrHandle<AsyncByteReaderInfo> _info;
-        private byte* _byteBuffer;
 
         private PtrHandle<ReadCommand> _readCmd;
 
@@ -43,8 +43,8 @@ namespace NativeStringCollections.Impl
         {
             _alloc = alloc;
 
+            _byteBuffer = new NativeArray<byte>(Define.MinBufferSize, alloc);
             _info = new PtrHandle<AsyncByteReaderInfo>(alloc);
-            _byteBuffer = (byte*)UnsafeUtility.Malloc(Define.MinByteBufferSize, Define.ByteAlign, alloc);
 
             _readCmd = new PtrHandle<ReadCommand>(alloc);
 
@@ -59,10 +59,13 @@ namespace NativeStringCollections.Impl
             // reallocation buffer
             if (_info.Target->bufferSize < fileSize)
             {
-                UnsafeUtility.Free(_byteBuffer, _alloc);
+                _byteBuffer.Dispose();
                 long new_size = _info.Target->bufferSize * ((fileSize / _info.Target->bufferSize) + 1);
 
-                _byteBuffer = (byte*)UnsafeUtility.Malloc(Define.MinByteBufferSize, Define.ByteAlign, _alloc);
+                if (new_size > int.MaxValue)
+                    throw new InvalidOperationException("too large file size. The AsyncByteReader can buffering < int.MaxValue bytes.");
+
+                _byteBuffer = new NativeArray<byte>((int)new_size, _alloc);
                 _info.Target->bufferSize = new_size;
             }
         }
@@ -82,10 +85,10 @@ namespace NativeStringCollections.Impl
             // disposing unmanaged resource
             if (_info.Target->allocated)
             {
+                _byteBuffer.Dispose();
+
                 _info.Target->readHandle.Dispose();
                 _info.Dispose();
-
-                UnsafeUtility.Free(_byteBuffer, _alloc);
 
                 _readCmd.Dispose();
             }
@@ -111,7 +114,7 @@ namespace NativeStringCollections.Impl
             {
                 Offset = 0,
                 Size = fileInfo.Length,
-                Buffer = _byteBuffer,
+                Buffer = _byteBuffer.GetUnsafePtr(),
             };
 
             _info.Target->readHandle = AsyncReadManager.Read(path, _readCmd.Target, 1);
@@ -122,10 +125,16 @@ namespace NativeStringCollections.Impl
             if (!_info.Target->readHandle.JobHandle.IsCompleted) _info.Target->readHandle.JobHandle.Complete();
         }
 
-        public void* GetUnsafePtr() { return (void*)_byteBuffer; }
+        public void* GetUnsafePtr() { return _byteBuffer.GetUnsafePtr(); }
         public byte this[int index]
         {
             get { return _byteBuffer[index]; }
+        }
+
+        private void CheckAllocator()
+        {
+            if (!UnsafeUtility.IsValidAllocator(_alloc))
+                throw new InvalidOperationException("The buffer can not be Disposed because it was not allocated with a valid allocator.");
         }
     }
 }

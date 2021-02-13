@@ -21,18 +21,23 @@ namespace NativeStringCollections
     {
         int Length { get; }
         char this[int index] { get; }
-        IStringEntityBase Slice(int begin = -1, int end = -1);
         bool EqualsStringEntity(IStringEntityBase entityBase);
         bool EqualsStringEntity(char* ptr, int Length);
-        bool Equals(IStringEntityBase entityBase);
+        bool Equals(StringEntity entityBase);
+        bool Equals(ReadOnlyStringEntity entityBase);
         bool Equals(char* ptr, int Length);
         void* GetUnsafePtr();
+    }
+    public interface ISlice<T>
+    {
+        T Slice(int begin = -1, int end = -1);
     }
 
     [StructLayout(LayoutKind.Auto)]
     public readonly unsafe struct StringEntity :
         IParseExt,
         IStringEntityBase,
+        ISlice<StringEntity>,
         IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
         IEnumerable<char>
     {
@@ -86,7 +91,7 @@ namespace NativeStringCollections
             this.CheckCharIndex(index);
             return this[index];
         }
-        public IStringEntityBase Slice(int begin = -1, int end = -1)
+        public StringEntity Slice(int begin = -1, int end = -1)
         {
             if (begin < 0) begin = 0;
             if (end < 0) end = _len;
@@ -142,7 +147,12 @@ namespace NativeStringCollections
         {
             return entity.EqualsStringEntity(_ptr, _len);
         }
-        public bool Equals(IStringEntityBase entity)
+        public bool Equals(StringEntity entity)
+        {
+            this.CheckReallocate();
+            return entity.Equals(_ptr, _len);
+        }
+        public bool Equals(ReadOnlyStringEntity entity)
         {
             this.CheckReallocate();
             return entity.Equals(_ptr, _len);
@@ -181,6 +191,10 @@ namespace NativeStringCollections
             this.CheckReallocate();
             return this.SequenceEqual<char>(str_itr);
         }
+        public static bool operator ==(StringEntity lhs, StringEntity rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(StringEntity lhs, StringEntity rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(StringEntity lhs, ReadOnlyStringEntity rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(StringEntity lhs, ReadOnlyStringEntity rhs) { return !lhs.Equals(rhs); }
         public static bool operator ==(StringEntity lhs, IEnumerable<char> rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(StringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
         public override bool Equals(object obj)
@@ -241,6 +255,7 @@ namespace NativeStringCollections
     public readonly unsafe struct ReadOnlyStringEntity :
         IParseExt,
         IStringEntityBase,
+        ISlice<ReadOnlyStringEntity>,
         IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
         IEnumerable<char>
     {
@@ -287,7 +302,7 @@ namespace NativeStringCollections
             this.CheckCharIndex(index);
             return this[index];
         }
-        public IStringEntityBase Slice(int begin = -1, int end = -1)
+        public ReadOnlyStringEntity Slice(int begin = -1, int end = -1)
         {
             if (begin < 0) begin = 0;
             if (end < 0) end = _len;
@@ -330,7 +345,12 @@ namespace NativeStringCollections
         {
             return entity.EqualsStringEntity(_ptr, _len);
         }
-        public bool Equals(IStringEntityBase entity)
+        public bool Equals(StringEntity entity)
+        {
+            this.CheckReallocate();
+            return entity.Equals(_ptr, _len);
+        }
+        public bool Equals(ReadOnlyStringEntity entity)
         {
             this.CheckReallocate();
             return entity.Equals(_ptr, _len);
@@ -369,6 +389,10 @@ namespace NativeStringCollections
             this.CheckReallocate();
             return this.SequenceEqual<char>(str_itr);
         }
+        public static bool operator ==(ReadOnlyStringEntity lhs, StringEntity rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, StringEntity rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(ReadOnlyStringEntity lhs, ReadOnlyStringEntity rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, ReadOnlyStringEntity rhs) { return !lhs.Equals(rhs); }
         public static bool operator ==(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
         public override bool Equals(object obj)

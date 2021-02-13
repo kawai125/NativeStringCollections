@@ -143,7 +143,7 @@ namespace NativeStringCollections
             this.Split(input, tmp);
             return tmp;
         }
-        public unsafe void Split(IStringEntityBase source, NativeStringList result, bool append = false)
+        public unsafe void Split<T>(T source, NativeStringList result, bool append = false) where T : IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
 
@@ -192,7 +192,7 @@ namespace NativeStringCollections
                 result.Add((T)entity);
             }
         }
-        private static unsafe void SplitWhiteSpaceImpl(IStringEntityBase source, IAddResult result)
+        private static unsafe void SplitWhiteSpaceImpl<T>(T source, IAddResult result) where T : IStringEntityBase, ISlice<T>
         {
             int start = 0;
             for (int i = 0; i < source.Length; i++)
@@ -214,7 +214,7 @@ namespace NativeStringCollections
                 result.AddResult(source.Slice(start, source.Length));
             }
         }
-        private static unsafe void SplitCharImpl(IStringEntityBase source, char delim, IAddResult result)
+        private static unsafe void SplitCharImpl<T>(T source, char delim, IAddResult result) where T : IStringEntityBase, ISlice<T>
         {
             int start = 0;
             for (int i = 0; i < source.Length; i++)
@@ -236,7 +236,7 @@ namespace NativeStringCollections
                 result.AddResult(source.Slice(start, source.Length));
             }
         }
-        private static unsafe void SplitStringImpl(IStringEntityBase source, IStringEntityBase delim, IAddResult result)
+        private static unsafe void SplitStringImpl<T>(T source, IStringEntityBase delim, IAddResult result) where T : IStringEntityBase, ISlice<T>
         {
             int start = 0;
             for (int i = 0; i < source.Length; i++)
@@ -311,7 +311,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public static void Split<T>(this IStringEntityBase source, NativeList<T> result, bool append = false) where T : unmanaged, IStringEntityBase
+        public static void Split<T>(this T source, NativeList<T> result, bool append = false)
+            where T : unmanaged, IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NL_SE<T>();
@@ -324,7 +325,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public static unsafe void Split(this IStringEntityBase source, NativeStringList result, bool append = false)
+        public static unsafe void Split<T>(this T source, NativeStringList result, bool append = false)
+            where T : IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NSL();
@@ -337,7 +339,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeStringList Split(this IStringEntityBase source, Allocator alloc)
+        public static NativeStringList Split<T>(this T source, Allocator alloc)
+            where T : IStringEntityBase, ISlice<T>
         {
             var tmp = new NativeStringList(alloc);
             source.Split(tmp, false);
@@ -382,8 +385,11 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public static void Split<T>(this IStringEntityBase source, char delim,
-                                    NativeList<T> result, bool append = false) where T : unmanaged, IStringEntityBase
+        public static void Split<T>(this T source,
+                                    char delim,
+                                    NativeList<T> result,
+                                    bool append = false)
+            where T : unmanaged, IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NL_SE<T>();
@@ -397,7 +403,11 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public static unsafe void Split(this IStringEntityBase source, char delim, NativeStringList result, bool append = false)
+        public static unsafe void Split<T>(this T source,
+                                           char delim,
+                                           NativeStringList result,
+                                           bool append = false)
+            where T : IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NSL();
@@ -411,7 +421,10 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeStringList Split(this IStringEntityBase source, char delim, Allocator alloc)
+        public static NativeStringList Split<T>(this T source,
+                                                char delim,
+                                                Allocator alloc)
+            where T : IStringEntityBase, ISlice<T>
         {
             var tmp = new NativeStringList(alloc);
             source.Split(delim, tmp, false);
@@ -427,7 +440,10 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public unsafe static void Split(this NativeList<char> source, NativeList<char> delim, NativeStringList result, bool append = false)
+        public unsafe static void Split(this NativeList<char> source,
+                                        NativeList<char> delim,
+                                        NativeStringList result,
+                                        bool append = false)
         {
             if (!append) result.Clear();
             var se = source.ToStringEntity();
@@ -443,7 +459,9 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="alloc"></param>
         /// <returns>result</returns>
-        public static NativeStringList Split(this NativeList<char> source, NativeList<char> delim, Allocator alloc)
+        public static NativeStringList Split(this NativeList<char> source,
+                                             NativeList<char> delim,
+                                             Allocator alloc)
         {
             var tmp = new NativeStringList(alloc);
             source.Split(delim, tmp, false);
@@ -456,7 +474,10 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public unsafe static void Split(this NativeList<char> source, IStringEntityBase delim, NativeStringList result, bool append = false)
+        public unsafe static void Split(this NativeList<char> source,
+                                        IStringEntityBase delim,
+                                        NativeStringList result,
+                                        bool append = false)
         {
             if (!append) result.Clear();
             var se = source.ToStringEntity();
@@ -471,7 +492,9 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="alloc"></param>
         /// <returns>result</returns>
-        public static NativeStringList Split(this NativeList<char> source, IStringEntityBase delim, Allocator alloc)
+        public static NativeStringList Split(this NativeList<char> source,
+                                             IStringEntityBase delim,
+                                             Allocator alloc)
         {
             var tmp = new NativeStringList(alloc);
             source.Split(delim, tmp, false);
@@ -486,9 +509,11 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public static void Split<T>(this IStringEntityBase source,
+        public static void Split<T>(this T source,
                                     NativeList<char> delim,
-                                    NativeList<T> result, bool append = false) where T : unmanaged, IStringEntityBase
+                                    NativeList<T> result,
+                                    bool append = false)
+            where T : unmanaged, IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NL_SE<T>();
@@ -503,9 +528,11 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public static void Split<T>(this IStringEntityBase source,
+        public static void Split<T>(this T source,
                                     IStringEntityBase delim,
-                                    NativeList<T> result, bool append = false) where T : unmanaged, IStringEntityBase
+                                    NativeList<T> result,
+                                    bool append = false)
+            where T : unmanaged, IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NL_SE<T>();
@@ -519,7 +546,11 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public unsafe static void Split(this IStringEntityBase source, NativeList<char> delim, NativeStringList result, bool append = false)
+        public unsafe static void Split<T>(this T source,
+                                           NativeList<char> delim,
+                                           NativeStringList result,
+                                           bool append = false)
+            where T : IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
             var de = delim.ToStringEntity();
@@ -534,7 +565,10 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeStringList Split(this IStringEntityBase source, NativeList<char> delim, Allocator alloc)
+        public static NativeStringList Split<T>(this T source,
+                                                NativeList<char> delim,
+                                                Allocator alloc)
+            where T : IStringEntityBase, ISlice<T>
         {
             var tmp = new NativeStringList(alloc);
             source.Split(delim, tmp, false);
@@ -548,7 +582,11 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
-        public unsafe static void Split(this IStringEntityBase source, IStringEntityBase delim, NativeStringList result, bool append = false)
+        public unsafe static void Split<T>(this T source,
+                                           IStringEntityBase delim,
+                                           NativeStringList result,
+                                           bool append = false)
+            where T : IStringEntityBase, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NSL();
@@ -562,7 +600,10 @@ namespace NativeStringCollections
         /// <param name="delim"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeStringList Split(this IStringEntityBase source, IStringEntityBase delim, Allocator alloc)
+        public static NativeStringList Split<T>(this T source,
+                                                IStringEntityBase delim,
+                                                Allocator alloc)
+            where T : IStringEntityBase, ISlice<T>
         {
             var tmp = new NativeStringList(alloc);
             source.Split(delim, tmp, false);

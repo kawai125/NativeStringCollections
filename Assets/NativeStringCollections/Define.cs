@@ -16,4 +16,9 @@ namespace NativeStringCollections
         public const int DefaultNumParser = 2;
         public const int NumParserLimit = 1048576;
     }
+
+    readonly struct Base64Const
+    {
+        public const int LineBreakPos = 76;
+    }
 }
