@@ -58,3 +58,5 @@ sysinfo.txt
 # Crashlytics generated file
 crashlytics-build.properties
 
+Assets/NativeStringCollections/Demo/sample_demo.tsv
+Assets/NativeStringCollections/Demo/sample_demo.tsv.meta

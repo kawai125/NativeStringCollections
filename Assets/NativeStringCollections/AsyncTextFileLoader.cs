@@ -43,17 +43,7 @@ namespace NativeStringCollections
         void UnLoad();
     }
 
-    public enum ReadJobState
-    {
-        // not in process
-        UnLoaded,
-        Completed,
-
-        // in process
-        ReadAsync,
-        ParseText,
-        PostProc,
-    }
+    
     public struct ReadState
     {
         public ReadJobState State { get; }
@@ -67,6 +57,10 @@ namespace NativeStringCollections
 
         public double Delay { get { return DelayReadAsync + DelayParseText + DelayPostProc; } }
         public bool IsCompleted { get { return (State == ReadJobState.Completed); } }
+        public bool IsStandby
+        {
+            get { return (State == ReadJobState.Completed || State == ReadJobState.UnLoaded); }
+        }
 
         public ReadState(ReadJobState state, int len, int read, int ref_count,
             double delay_read_async,
@@ -84,7 +78,7 @@ namespace NativeStringCollections
     }
 
     public class AsyncTextFileLoader<T>
-        where T : ITextFileParser, IDisposable, new()
+        where T : class, ITextFileParser, IDisposable, new()
     {
         private List<string> _fileList;
         private Encoding _encoding;
@@ -134,7 +128,9 @@ namespace NativeStringCollections
         private NativeList<QueueRequest> _updateQueueTmp;
         private NativeList<int> _updateLoadTgtTmp;
 
-        public void Init(Allocator alloc)
+
+        private AsyncTextFileLoader() { }
+        public AsyncTextFileLoader(Allocator alloc)
         {
             _alloc = alloc;
             _fileList = new List<string>();
@@ -166,16 +162,12 @@ namespace NativeStringCollections
         void Dispose(bool disposing)
         {
             this.Clear();
-
-            // disposing managed resource
-            if (disposing)
-            {
-
-            }
+            
             // disposing unmanaged resource
             if (true)
             {
                 foreach (var p in _parserPool) p.Value.Dispose();
+                _parserAvail.Dispose();
                 _runningJob.Dispose();
 
                 _state.Dispose();
@@ -185,14 +177,27 @@ namespace NativeStringCollections
                 _updateQueueTmp.Dispose();
                 _updateLoadTgtTmp.Dispose();
             }
+            // disposing managed resource
+            if (disposing)
+            {
+                GC.SuppressFinalize(_data);
+                GC.SuppressFinalize(_parserPool);
+                GC.SuppressFinalize(_encoding);
+            }
         }
         public void Clear()
         {
             _fileList.Clear();
 
-            foreach (var d in _data) d.Dispose();
+            for(int i=0; i<_data.Count; i++)
+            {
+                _data[i].Dispose();
+            }
             _data.Clear();
-            foreach (var s in _state) s.Dispose();
+            for(int i=0; i<_state.Length; i++)
+            {
+                _state[i].Dispose();
+            }
             _state.Clear();
         }
         ~AsyncTextFileLoader() { this.Dispose(); }
@@ -255,10 +260,6 @@ namespace NativeStringCollections
         {
             return _state[index].Target->GetState();
         }
-        public unsafe JobHandle GetJobHandle(int index)
-        {
-            return _state[index].Target->JobHandle;
-        }
 
         public void LoadFile(int index)
         {
@@ -286,7 +287,7 @@ namespace NativeStringCollections
             {
                 var job_info = _runningJob[i];
                 var read_state = _state[job_info.FileIndex];
-                if (read_state.Target->JobHandle.IsCompleted)
+                if (read_state.Target->State == ReadJobState.WaitForCallingComplete)
                 {
                     _parserPool[job_info.ParserID].Complete();
                     read_state.Target->State = ReadJobState.Completed;
@@ -296,7 +297,28 @@ namespace NativeStringCollections
                 }
             }
 
-            if (_parserAvail.Count <= 0) return;
+#if UNITY_EDITOR
+            var sb = new StringBuilder();
+            if (_requestQueue.Count > 0)
+            {
+                sb.Append(" >> AsyncTextFileLoader.Update() >> \n");
+                sb.Append("   _requestQueue.Count = " + _requestQueue.Count.ToString() + '\n');
+                sb.Append("   _runningJob.Length  = " + _runningJob.Length.ToString() + '\n');
+                sb.Append("   _maxJobCount        = " + _maxJobCount.ToString() + '\n');
+            }
+#endif
+            // no requests. or all available parser were running. retry in next Update().
+            if (_requestQueue.Count == 0 || (_maxJobCount - _runningJob.Length <= 0 && !flush_all_jobs))
+            {
+#if UNITY_EDITOR
+                if(sb.Length > 0)
+                {
+                    Debug.Log(sb.ToString());
+                    sb.Clear();
+                }
+#endif
+                return;
+            }
 
             // preprocess requests
             _updateQueueTmp.Clear();
@@ -309,8 +331,9 @@ namespace NativeStringCollections
             _requestQueue.Clear();
 
             //--- set load action
-            foreach(var act in _updateQueueTmp)
+            for(int i=0; i<_updateQueueTmp.Length; i++)
             {
+                var act = _updateQueueTmp[i];
                 if(act.action == FileAction.Store)
                 {
                     var tgt_state = _state[act.fileIndex];
@@ -323,8 +346,9 @@ namespace NativeStringCollections
             }
 
             //--- set unload action
-            foreach(var act in _updateQueueTmp)
+            for(int i=0; i<_updateQueueTmp.Length; i++)
             {
+                var act = _updateQueueTmp[i];
                 if(act.action == FileAction.Dispose)
                 {
                     var tgt_state = _state[act.fileIndex];
@@ -337,6 +361,9 @@ namespace NativeStringCollections
                         {
                             // remove from loading order (file loading is not performed)
                             _updateLoadTgtTmp.RemoveAtSwapBack(found_index);
+#if UNITY_EDITOR
+                            sb.Append("  -- loading index = " + found_index.ToString() + " was cancelled.\n");
+#endif
                         }
                         else
                         {
@@ -345,15 +372,31 @@ namespace NativeStringCollections
                             {
                                 _data[act.fileIndex].UnLoad();
                                 _state[act.fileIndex].Target->State = ReadJobState.UnLoaded;
+#if UNITY_EDITOR
+                                sb.Append("  -- index = " + found_index.ToString() + " was unloaded.\n");
+#endif
                             }
                             else
                             {
                                 // now loading. unload request will try in next update.
                                 _requestQueue.Enqueue(act);
+#if UNITY_EDITOR
+                                sb.Append("  -- index = " + found_index.ToString() + " is loading in progress.");
+                                sb.Append(" retry unload in next Update().\n");
+#endif
                             }
                         }
                     }
-                    if (tgt_state.Target->RefCount < 0) throw new InvalidOperationException("invalid UnLoading.");
+                    if (tgt_state.Target->RefCount < 0)
+                    {
+#if UNITY_EDITOR
+                        var sb_e = new StringBuilder();
+                        sb_e.Append(" >> AsyncTextFileLoader.Update() >> \n");
+                        sb_e.Append("  invalid unloading for index = " + act.fileIndex.ToString() + ".\n");
+                        Debug.LogError(sb_e.ToString());
+#endif
+                        throw new InvalidOperationException("invalid UnLoading.");
+                    }
                 }
             }
             _updateQueueTmp.Clear();
@@ -366,6 +409,12 @@ namespace NativeStringCollections
                 n_add_parser = Math.Min(this.MaxJobCount - _parserPool.Count, n_add_parser);
             }
             for (int i = 0; i < n_add_parser; i++) this.GenerateParser();
+#if UNITY_EDITOR
+            if(n_add_parser > 0)
+            {
+                sb.Append("   " + n_add_parser.ToString() + " parsers were generated.\n");
+            }
+#endif
 
             //--- run jobs
             int n_job = Math.Min(_parserAvail.Count, _updateLoadTgtTmp.Length);
@@ -377,14 +426,30 @@ namespace NativeStringCollections
                 var p_state = _state[file_index];
                 p_tmp.BlockSize = _blockSize;
                 p_tmp.ReadFileAsync(_fileList[file_index], _encoding, _data[file_index], p_state);
+                _runningJob.Add(new JobInfo(file_index, p_id));
+#if UNITY_EDITOR
+                sb.Append("   run the ParseJob: file index = " + file_index.ToString());
+                sb.Append(", parser_id = " + p_id.ToString() + '\n');
+#endif
             }
 
             //--- write back excessive queue
-            for(int i=n_job; i<_updateLoadTgtTmp.Length; i++)
+            for (int i=n_job; i<_updateLoadTgtTmp.Length; i++)
             {
                 this.LoadFile(_updateLoadTgtTmp[i]);
+#if UNITY_EDITOR
+                sb.Append($"   loadning queue: {_updateLoadTgtTmp[i]} is pending.\n");
+#endif
             }
             _updateLoadTgtTmp.Clear();
+
+#if UNITY_EDITOR
+            if (sb.Length > 0)
+            {
+                Debug.Log(sb.ToString());
+                sb.Clear();
+            }
+#endif
         }
 
         private void GenerateParser()
@@ -399,7 +464,7 @@ namespace NativeStringCollections
                     var p_tmp = new ParseJob<T>(_alloc);
                     _parserPool.Add(_gen, p_tmp);
                     _parserAvail.Enqueue(_gen);
-                    break;
+                    return;
                 }
             }
 
@@ -413,13 +478,50 @@ namespace NativeStringCollections
             {
                 // return into queue
                 _parserAvail.Enqueue(parser_id);
+#if UNITY_EDITOR
+                var sb = new StringBuilder();
+                sb.Append(" >> AsyncTextFileLoader >> \n");
+                sb.Append("  parser id = " + parser_id.ToString() + " was returned into pool.\n");
+                Debug.Log(sb.ToString());
+#endif
             }
             else
             {
                 // dispose excessive parser
                 _parserPool[parser_id].Dispose();
                 _parserPool.Remove(parser_id);
+#if UNITY_EDITOR
+                var sb = new StringBuilder();
+                sb.Append(" >> AsyncTextFileLoader >> \n");
+                sb.Append("  parser id = " + parser_id.ToString() + " was disposed.\n");
+                sb.Append("  total parser = " + _parserPool.Count.ToString() + "\n");
+                Debug.Log(sb.ToString());
+#endif
             }
+        }
+
+        /// <summary>
+        /// force the job to be processed in the main thread for debuging user defined parser.
+        /// </summary>
+        /// <param name="index"></param>
+        public unsafe void LoadFileInMainThread(int file_index)
+        {
+#if UNITY_EDITOR
+            var p_state = _state[file_index];
+
+            if(p_state.Target->RefCount == 0)
+            {
+                var p_tmp = new ParseJob<T>(_alloc);
+                p_tmp.BlockSize = _blockSize;
+                p_tmp.ReadFileInMainThread(_fileList[file_index], _encoding, _data[file_index], p_state);
+                p_tmp.Dispose();
+                p_state.Target->State = ReadJobState.Completed;
+            }
+
+            p_state.Target->RefCount++;
+#else
+            throw new InvalidOperationException("this function is use in UnityEditer only. use LoadFile(int index).");
+#endif
         }
     }
 
@@ -437,7 +539,6 @@ namespace NativeStringCollections
             public double DelayPostProc;
 
             public int ParserID;
-            public JobHandle JobHandle;
 
             public void Clear()
             {
@@ -447,7 +548,6 @@ namespace NativeStringCollections
                 RefCount = 0;
 
                 ParserID = -1;
-                JobHandle = new JobHandle();
 
                 DelayReadAsync = -1;
                 DelayParseText = -1;
@@ -468,14 +568,11 @@ namespace NativeStringCollections
 
         internal struct ParseJobInfo
         {
-            public int decodeBlock;
+            public int decodeBlockSize;
             public int blockNum;
             public int blockPos;
 
-            public Boolean check_CR;
-
             public Boolean allocated;
-            public Boolean checkPreamble;
             public Boolean disposeHandle;
 
             public JobHandle jobHandle;
@@ -484,12 +581,7 @@ namespace NativeStringCollections
             where Tdata : ITextFileParser, IDisposable
         {
             private AsyncByteReader _byteReader;
-
-            private GCHandle<Decoder> _decoder;
-            private NativeList<byte> _preamble;
-
-            private NativeHeadRemovableList<char> _charBuff;
-            private NativeList<char> _continueBuff;
+            private TextDecoder _decoder;
 
             private NativeStringList _lines;
 
@@ -503,12 +595,8 @@ namespace NativeStringCollections
             public ParseJob(Allocator alloc)
             {
                 _byteReader = new AsyncByteReader(alloc);
+                _decoder = new TextDecoder(alloc);
 
-                _decoder = new GCHandle<Decoder>();
-                _preamble = new NativeList<byte>(alloc);
-
-                _charBuff = new NativeHeadRemovableList<char>(alloc);
-                _continueBuff = new NativeList<char>(alloc);
                 _lines = new NativeStringList(alloc);
 
                 _data = new GCHandle<Tdata>();
@@ -516,12 +604,11 @@ namespace NativeStringCollections
 
                 _info = new PtrHandle<ParseJobInfo>(alloc);
 
-                _info.Target->decodeBlock = Define.DefaultDecodeBlock;
+                _info.Target->decodeBlockSize = Define.DefaultDecodeBlock;
                 _info.Target->blockNum = 0;
                 _info.Target->blockPos = 0;
 
                 _info.Target->allocated = true;
-                _info.Target->checkPreamble = false;
                 _info.Target->disposeHandle = false;
 
                 _info.Target->jobHandle = new JobHandle();
@@ -540,18 +627,17 @@ namespace NativeStringCollections
                 {
                     this.Complete();
 
+                    this.DisposeHandle();
+
                     if (_info.Target->allocated)
                     {
                         _byteReader.Dispose();
-                        _preamble.Dispose();
+                        _decoder.Dispose();
 
-                        _charBuff.Dispose();
-                        _continueBuff.Dispose();
                         _lines.Dispose();
 
                         _info.Target->allocated = false;
                     }
-                    this.DisposeHandle();
                     _info.Dispose();
                 }
             }
@@ -559,7 +645,8 @@ namespace NativeStringCollections
             {
                 if (_info.Target->disposeHandle)
                 {
-                    _decoder.Dispose();
+                    _decoder.ReleaseDecoder();
+
                     _data.Dispose();
                     _timer.Dispose();
 
@@ -568,16 +655,31 @@ namespace NativeStringCollections
             }
             public int BlockSize
             {
-                get { return _info.Target->decodeBlock; }
-                set { if (value > Define.DefaultDecodeBlock) _info.Target->decodeBlock = value; }
+                get { return _info.Target->decodeBlockSize; }
+                set { if (value > Define.DefaultDecodeBlock) _info.Target->decodeBlockSize = value; }
             }
             public JobHandle ReadFileAsync(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
             {
+                this.InitializeReadJob(path, encoding, data, state_ptr);
+
+                var job_byteReader = _byteReader.ReadFileAsync(path);
+                _info.Target->jobHandle = this.Schedule(job_byteReader);
+
+                return _info.Target->jobHandle;
+            }
+            public void ReadFileInMainThread(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
+            {
+                this.InitializeReadJob(path, encoding, data, state_ptr);
+
+                var job_byteReader = _byteReader.ReadFileAsync(path);
+                job_byteReader.Complete();
+                this.Run();
+            }
+            private void InitializeReadJob(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
+            {
                 this.DisposeHandle();
 
-                _decoder.Create(encoding.GetDecoder());
-                _preamble.Clear();
-                foreach (byte b in encoding.GetPreamble()) _preamble.Add(b);
+                _decoder.SetEncoding(encoding);
 
                 _data.Create(data);
                 _state_ptr = state_ptr;
@@ -586,22 +688,15 @@ namespace NativeStringCollections
                 _state_ptr.Target->DelayParseText = -1;
                 _state_ptr.Target->DelayPostProc = -1;
 
-                _info.Target->checkPreamble = true;
                 _info.Target->disposeHandle = true;
 
                 _timer.Create(new System.Diagnostics.Stopwatch());
                 _timer.Target.Start();
                 _timer_ms_coef = 1000000.0 / System.Diagnostics.Stopwatch.Frequency;
-
-                var job_byteReader = _byteReader.ReadFileAsync(path);
-                _info.Target->jobHandle = this.Schedule(job_byteReader);
-
-                _state_ptr.Target->JobHandle = _info.Target->jobHandle;
-                return _info.Target->jobHandle;
             }
             public void Complete()
             {
-                if (!_info.Target->jobHandle.IsCompleted) _info.Target->jobHandle.Complete();
+                _info.Target->jobHandle.Complete();
                 this.DisposeHandle();
             }
             public bool IsCreated { get { return _info.Target->allocated; } }
@@ -615,21 +710,20 @@ namespace NativeStringCollections
                 _timer.Target.Restart();
 
                 // initialize
-                if (_info.Target->decodeBlock > _byteReader.Length)
+                if (_info.Target->decodeBlockSize >= _byteReader.Length)
                 {
                     _info.Target->blockNum = 1;
                 }
                 else
                 {
-                    _info.Target->blockNum = (int)(_byteReader.Length / _info.Target->decodeBlock) + 1;
+                    _info.Target->blockNum = (_byteReader.Length / _info.Target->decodeBlockSize) + 1;
                 }
                 _info.Target->blockPos = 0;
                 _state_ptr.Target->Length = _info.Target->blockNum;
                 _state_ptr.Target->Read = 0;
                 _state_ptr.Target->State = ReadJobState.ParseText;
 
-                _charBuff.Clear();
-                _continueBuff.Clear();
+                _decoder.Clear();
 
                 // parse text
                 this.ParseText();
@@ -641,21 +735,22 @@ namespace NativeStringCollections
                 _timer.Target.Stop();
 
                 _state_ptr.Target->DelayPostProc = this.TimerElapsedMicroSeconds();
-                this.DisposeHandle();
+
+                // wait for Complete()
+                _state_ptr.Target->State = ReadJobState.WaitForCallingComplete;
             }
             private void ParseText()
             {
                 _data.Target.Clear();
+
                 Boolean continue_flag = true;
                 for (int pos = 0; pos < _info.Target->blockNum; pos++)
                 {
-                    _info.Target->blockPos = pos;
-
-                    this.DecodeBuffer();
                     _lines.Clear();
                     this.ParseLinesFromBuffer();
-                    foreach (var str in _lines)
+                    for (int i=0; i<_lines.Length; i++)
                     {
+                        var str = _lines[i];
                         continue_flag = _data.Target.ParseLine(str.GetReadOnlyEntity());
 
                         // abort
@@ -669,129 +764,41 @@ namespace NativeStringCollections
                 }
             }
 
-            private unsafe bool IsPreamble()
+            private unsafe void ParseLinesFromBuffer()
             {
-                if (!_info.Target->checkPreamble) return false;
-                if (_preamble.Length > _byteReader.Length) return false;
-                _info.Target->checkPreamble = false; // check at first only
-
-                for (int i = 0; i < _preamble.Length; i++)
-                {
-                    if (_preamble[i] != _byteReader[i]) return false;
-                }
-
-                return true;
-            }
-            private unsafe void DecodeBuffer()
-            {
-                int byte_offset = 0;
-                if (this.IsPreamble()) byte_offset = _preamble.Length;  // skip BOM
-
-                long byte_pos = _info.Target->blockPos * _info.Target->decodeBlock;
-                int byte_len = Math.Min(_info.Target->decodeBlock, (int)(_byteReader.Length - byte_pos));
-                byte_pos += byte_offset;
-                byte_len -= byte_offset;
-                if (byte_len < 0) throw new InvalidOperationException("Internal error: invalid buffer size.");
+                // decode byte buffer
+                long byte_pos = _info.Target->blockPos * _info.Target->decodeBlockSize;
+                int decode_len = (int)(_byteReader.Length - byte_pos);
+                if (decode_len <= 0) return;
+                int byte_len = Math.Min(_info.Target->decodeBlockSize, decode_len);
 
                 byte* byte_ptr = (byte*)_byteReader.GetUnsafePtr() + byte_pos;
-                int char_len = _decoder.Target.GetCharCount(byte_ptr, byte_len, false);
+                _decoder.GetLines(_lines, byte_ptr, byte_len);
 
-                _charBuff.Clear();
-                if (char_len > _charBuff.Capacity) _charBuff.Capacity = char_len;
-                _charBuff.ResizeUninitialized(char_len);
+                _info.Target->blockPos++;
 
-                _decoder.Target.GetChars(byte_ptr, byte_len, (char*)_charBuff.GetUnsafePtr(), char_len, false);
-            }
-            private unsafe bool ParseLineImpl()
-            {
-                // check '\r\n' is overlap between previous buffer and current buffer
-                if (_info.Target->check_CR && _charBuff.Length > 0)
+                if(_info.Target->blockPos == _info.Target->blockNum)
                 {
-                    if (_charBuff[0] == '\n') _charBuff.RemoveHead();
-
-                    //if (_charBuff[0] == '\n') Debug.LogWarning("  >> detect overlap \\r\\n");
-                }
-
-                if (_charBuff.Length == 0) return false;
-
-                for (int i = 0; i < _charBuff.Length; i++)
-                {
-                    char ch = _charBuff[i];
-                    // detect ch = '\n' (unix), '\r\n' (DOS), or '\r' (Mac)
-                    if (ch == '\n' || ch == '\r')
+                    if (!_decoder.IsEmpty)
                     {
-                        //Debug.Log("  ** found LF = " + ((int)ch).ToString() + ", i=" + i.ToString() + "/" + _charBuff.Length.ToString());
-                        if (_charBuff[i] == '\n' && i > 0)
+                        using(var buff = new NativeList<char>(Allocator.Temp))
                         {
-                            //Debug.Log("  ** before LF = " + ((int)_charBuff[i-1]).ToString());
+                            _decoder.GetInternalBuffer(buff);
+                            _lines.Add((char*)buff.GetUnsafePtr(), buff.Length);
                         }
-
-                        if (i > 0) _lines.Add((char*)_charBuff.GetUnsafePtr(), i);
-
-                        if (ch == '\r')
-                        {
-                            if (i + 1 < _charBuff.Length)
-                            {
-                                if (_charBuff[i + 1] == '\n')
-                                {
-                                    i++;
-                                    //Debug.Log("  ** found CRLF");
-                                }
-                            }
-                            else
-                            {
-                                // check '\r\n' or not on the head of next buffer
-                                //Debug.LogWarning("  >> checking overlap CRLF");
-                                _info.Target->check_CR = true;
-                            }
-                        }
-                        else
-                        {
-                            _info.Target->check_CR = false;
-                        }
-                        _charBuff.RemoveHead(i + 1);
-                        return true;
                     }
                 }
-                return false;
-            }
-            private unsafe int ParseLinesFromBuffer()
-            {
-                // move continue buffer data into head of new charBuff
-                if (_continueBuff.Length > 0)
+
+                /*
+                var sb = new StringBuilder();
+                sb.Append("decoded lines:\n");
+                foreach(var se in _lines)
                 {
-                    _charBuff.InsertHead(_continueBuff.GetUnsafePtr(), _continueBuff.Length);
-                    _continueBuff.Clear();
+                    sb.Append(se.ToString());
+                    sb.Append('\n');
                 }
-
-                bool detect_line_factor = false;
-                int line_count = 0;
-                for (int i_line = 0; i_line < _info.Target->decodeBlock; i_line++)   // decodeBlock must be >> # of lines in buffer.
-                {
-                    // read charBuff by line
-                    detect_line_factor = this.ParseLineImpl();
-                    if (detect_line_factor)
-                    {
-                        line_count++;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-
-                // LF was not found in charBuff
-                if (!detect_line_factor)
-                {
-                    // move left charBuff data into continue buffer
-                    if (_charBuff.Length > 0)
-                    {
-                        _continueBuff.Clear();
-                        _continueBuff.AddRange(_charBuff.GetUnsafePtr(), _charBuff.Length);
-                    }
-                    _charBuff.Clear();
-                }
-                return line_count;
+                Debug.Log(sb.ToString());
+                */
             }
             private double TimerElapsedMicroSeconds()
             {

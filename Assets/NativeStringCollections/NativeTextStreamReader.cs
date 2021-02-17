@@ -23,19 +23,15 @@ namespace NativeStringCollections
         private string _path;
 
         private Encoding _encoding;
-        private Decoder _decoder;
+        private TextDecoder _decoder;
 
-        private NativeList<byte> _preamble;
-        private NativeHeadRemovableList<char> _charBuff;
-        private NativeList<char> _continueBuff;
+        private NativeStringList _lines;
 
         private long _fileSize;
         private int _blockNum;
         private int _blockPos;
         private int _byteLength;
 
-        private bool _checkPreamble;
-        private bool _check_CR;
         private bool _allocated = false;
         private bool _disposeStream = false;
 
@@ -43,9 +39,9 @@ namespace NativeStringCollections
         {
             _byteBuffer = new byte[Define.DefaultBufferSize];
 
-            _preamble = new NativeList<byte>(alloc);
-            _charBuff = new NativeHeadRemovableList<char>(alloc);
-            _continueBuff = new NativeList<char>(alloc);
+            _decoder = new TextDecoder(alloc);
+            _lines = new NativeStringList(alloc);
+
             _allocated = true;
 
             this.Encoding = Encoding.Default;
@@ -59,9 +55,8 @@ namespace NativeStringCollections
             }
             if (_allocated)
             {
-                _preamble.Dispose();
-                _charBuff.Dispose();
-                _continueBuff.Dispose();
+                _decoder.Dispose();
+                _lines.Dispose();
             }
         }
         public void Init(string path, Encoding encoding, int bufferSize = Define.DefaultBufferSize)
@@ -95,11 +90,7 @@ namespace NativeStringCollections
             _fileStream = new FileStream(_path, FileMode.Open, FileAccess.Read);
             _disposeStream = true;
 
-            _decoder.Reset();
-            _check_CR = false;
-
-            _continueBuff.Clear();
-            _charBuff.Clear();
+            _decoder.Clear();
         }
 
         public Encoding Encoding
@@ -108,19 +99,13 @@ namespace NativeStringCollections
             set
             {
                 _encoding = value;
-                _decoder = _encoding.GetDecoder();
-
-                var tmp = _encoding.GetPreamble();
-                _preamble.Clear();
-                foreach (byte b in tmp) _preamble.Add(b);
-
-                if (_preamble.Length > 0) _checkPreamble = true;
+                _decoder.SetEncoding(_encoding);
             }
         }
 
         public int Length { get { return _blockNum; } }
         public int Pos { get { return _blockPos; } }
-        public bool EndOfStream { get { return (_blockPos == _blockNum && _charBuff.Length == 0); } }
+        public bool EndOfStream { get { return (_blockPos == _blockNum && _decoder.IsEmpty && _lines.Length == 0); } }
 
 
         private void ReadStream()
@@ -130,39 +115,6 @@ namespace NativeStringCollections
             _byteLength = _fileStream.Read(_byteBuffer, 0, _byteBuffer.Length);
 
             _blockPos++;
-        }
-        private unsafe bool IsPreamble()
-        {
-            if (!_checkPreamble) return false;
-            if (_preamble.Length > _byteLength) return false;
-            _checkPreamble = false; // check at first only
-
-            for (int i = 0; i < _preamble.Length; i++)
-            {
-                if (_preamble[i] != _byteBuffer[i]) return false;
-            }
-
-            return true;
-        }
-        private unsafe void DecodeBuffer()
-        {
-            int byte_offset = 0;
-            if (this.IsPreamble()) byte_offset = _preamble.Length;  // skip BOM
-
-            int byte_len = _byteLength - byte_offset;
-            if (byte_len < 0) throw new InvalidOperationException("internal error");
-
-            fixed(byte* byte_ptr = _byteBuffer)
-            {
-                byte* data_ptr = byte_ptr + byte_offset;
-                int char_len = _decoder.GetCharCount(data_ptr, byte_len, false);
-
-                _charBuff.Clear();
-                if (char_len > _charBuff.Capacity) _charBuff.Capacity = char_len;
-                _charBuff.ResizeUninitialized(char_len);
-
-                _decoder.GetChars(data_ptr, byte_len, (char*)_charBuff.GetUnsafePtr(), char_len, false);
-            }
         }
 
         private unsafe interface IAddResult
@@ -189,122 +141,60 @@ namespace NativeStringCollections
                 result.AddRange((void*)ptr, len);
             }
         }
-        private unsafe bool ParseLineFromCharBuffer(IAddResult result)
-        {
-            // check '\r\n' is overlap between previous buffer and current buffer
-            if (_check_CR && _charBuff.Length > 0)
-            {
-                if (_charBuff[0] == '\n') _charBuff.RemoveHead();
 
-                //if (_charBuff[0] == '\n') Debug.LogWarning("  >> detect overlap \\r\\n");
-            }
-
-            if (_charBuff.Length == 0) return false;
-
-            for (int i = 0; i < _charBuff.Length; i++)
-            {
-                char ch = _charBuff[i];
-                // detect ch = '\n' (unix), '\r\n' (DOS), or '\r' (Mac)
-                if (ch == '\n' || ch == '\r')
-                {
-                    //Debug.Log("  ** found LF = " + ((int)ch).ToString() + ", i=" + i.ToString() + "/" + _charBuff.Length.ToString());
-                    if (_charBuff[i] == '\n' && i > 0)
-                    {
-                        //Debug.Log("  ** before LF = " + ((int)_charBuff[i-1]).ToString());
-                    }
-
-                    if (i > 0) result.AddResult((char*)_charBuff.GetUnsafePtr(), i);
-
-                    if (ch == '\r')
-                    {
-                        if (i + 1 < _charBuff.Length)
-                        {
-                            if (_charBuff[i + 1] == '\n')
-                            {
-                                i++;
-                                //Debug.Log("  ** found CRLF");
-                            }
-                        }
-                        else
-                        {
-                            // check '\r\n' or not on the head of next buffer
-                            //Debug.LogWarning("  >> checking overlap CRLF");
-                            _check_CR = true;
-                        }
-                    }
-                    else
-                    {
-                        _check_CR = false;
-                    }
-                    _charBuff.RemoveHead(i + 1);
-                    return true;
-                }
-            }
-            return false;
-        }
-        private unsafe int ReadLinesFromCharBuffer(IAddResult result, int max_lines)
-        {
-            // move continue buffer data into head of new charBuff
-            if (_continueBuff.Length > 0)
-            {
-                _charBuff.InsertHead(_continueBuff.GetUnsafePtr(), _continueBuff.Length);
-                _continueBuff.Clear();
-            }
-
-            bool detect_line_factor = false;
-            int line_count = 0;
-            for (int i_line = 0; i_line < max_lines; i_line++)
-            {
-                // read charBuff by line
-                detect_line_factor = this.ParseLineFromCharBuffer(result);
-                if (detect_line_factor)
-                {
-                    line_count++;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            // LF was not found in charBuff
-            if (!detect_line_factor)
-            {
-                // move left charBuff data into continue buffer
-                if (_charBuff.Length > 0)
-                {
-                    _continueBuff.Clear();
-                    _continueBuff.AddRange(_charBuff.GetUnsafePtr(), _charBuff.Length);
-                }
-                _charBuff.Clear();
-            }
-            return line_count;
-        }
         private unsafe void ReadLinesImpl(IAddResult result, int max_lines)
         {
             int line_count = 0;
+
+            line_count += this.PickLinesImpl(result, max_lines);
+            if (line_count == max_lines) return;
+
+            _lines.Clear();
             while (line_count < max_lines)
             {
-                if(_blockPos < _blockNum && _charBuff.Length == 0)
+                if (_blockPos < _blockNum && _decoder.IsEmpty)
                 {
                     this.ReadStream();
-                    this.DecodeBuffer();
+                    fixed(byte* byte_ptr = _byteBuffer)
+                    {
+                        _decoder.GetLines(_lines, byte_ptr, _byteLength);
+                    }
                 }
 
-                line_count += this.ReadLinesFromCharBuffer(result, max_lines);
+                line_count += this.PickLinesImpl(result, max_lines - line_count);
+                if (line_count == max_lines) return;
 
                 if (_blockPos == _blockNum)
                 {
                     // if final part do not have LF.
-                    if(_continueBuff.Length > 0)
+                    if (!_decoder.IsEmpty)
                     {
-                        result.AddResult((char*)_continueBuff.GetUnsafePtr(), _continueBuff.Length);
+                        var buff = new NativeList<char>(Allocator.Temp);
+                        _decoder.GetInternalBuffer(buff);
+                        result.AddResult((char*)buff.GetUnsafePtr(), buff.Length);
+                        buff.Dispose();
                     }
 
                     // reach EOF
                     break;
                 }
             }
+        }
+        private unsafe int PickLinesImpl(IAddResult result, int max_lines)
+        {
+            int line_count = 0;
+            if (_lines.Length > 0)
+            {
+                int n_lines = Math.Min(_lines.Length, max_lines);
+                for (int i = 0; i < n_lines; i++)
+                {
+                    var se = _lines[i];
+                    result.AddResult((char*)se.GetUnsafePtr(), se.Length);
+                    line_count++;
+                }
+                _lines.RemoveRange(0, n_lines);
+            }
+            return line_count;
         }
 
         public void ReadLine(NativeList<char> result)
@@ -324,58 +214,60 @@ namespace NativeStringCollections
             var ret = new Result_NSL();
             ret.result = result;
 
-            if (_blockPos < _blockNum && _charBuff.Length == 0)
+            if (_blockPos < _blockNum)
             {
                 this.ReadStream();
-                this.DecodeBuffer();
+                fixed (byte* byte_ptr = _byteBuffer)
+                {
+                    _decoder.GetLines(_lines, byte_ptr, _byteLength);
+                }
             }
 
-            this.ReadLinesFromCharBuffer(ret, _charBuff.Length);  // read all lines in buffer
+            // read all lines in buffer
+            this.PickLinesImpl(ret, int.MaxValue);
+            _lines.Clear();
 
             if (_blockPos == _blockNum)
             {
                 // if final part do not have LF.
-                if (_continueBuff.Length > 0)
+                if (!_decoder.IsEmpty)
                 {
-                    result.Add((char*)_continueBuff.GetUnsafePtr(), _continueBuff.Length);
+                    using (var buff = new NativeList<char>(Allocator.Temp))
+                    {
+                        _decoder.GetInternalBuffer(buff);
+                        result.Add((char*)buff.GetUnsafePtr(), buff.Length);
+                    }
                 }
             }
         }
         public unsafe void ReadBuffer(NativeList<char> result)
         {
-            if (_blockPos < _blockNum && _charBuff.Length == 0)
+            if (_blockPos < _blockNum)
             {
                 this.ReadStream();
-                this.DecodeBuffer();
+                fixed (byte* byte_ptr = _byteBuffer)
+                {
+                    _decoder.GetChars(result, byte_ptr, _byteLength);
+                }
             }
 
-            if(_continueBuff.Length > 0)
+            if (!_decoder.IsEmpty)
             {
-                result.AddRange(_continueBuff.GetUnsafePtr(), _continueBuff.Length);
-                _continueBuff.Clear();
+                _decoder.GetInternalBuffer(result);
             }
-
-            result.AddRange(_charBuff.GetUnsafePtr(), _charBuff.Length);
-            _charBuff.Clear();
         }
         public unsafe void ReadToEnd(NativeStringList result)
         {
-            while (_blockPos < _blockNum)
+            while (_blockPos <= _blockNum)
             {
                 this.ReadLinesFromBuffer(result);
-            }
-            if(_continueBuff.Length > 0)
-            {
-                result.Add((char*)_continueBuff.GetUnsafePtr(), _continueBuff.Length);
-                _continueBuff.Clear();
             }
         }
         public unsafe void ReadToEnd(NativeList<char> result)
         {
-            if (_continueBuff.Length > 0)
+            if (!_decoder.IsEmpty)
             {
-                result.AddRange((char*)_continueBuff.GetUnsafePtr(), _continueBuff.Length);
-                _continueBuff.Clear();
+                _decoder.GetInternalBuffer(result);
             }
             while (_blockPos < _blockNum)
             {

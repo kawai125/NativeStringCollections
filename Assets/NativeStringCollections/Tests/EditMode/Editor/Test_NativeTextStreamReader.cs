@@ -116,14 +116,7 @@ namespace Tests
                 reader.ReadToEnd(_readData);
 
                 //--- check result
-                Assert.IsTrue(this.EqualString(TestSeq, _readData, comp_report));
-                if (comp_report.Count > 0)
-                {
-                    for (int i = 0; i < comp_report.Count; i++)
-                    {
-                        Debug.LogWarning("  !! " + comp_report[i]);
-                    }
-                }
+                Assert.IsTrue(this.EqualString(TestSeq, _readData));
 
                 // by ReadBuffer()
                 Debug.Log("  >> ReadBuffer() test >>");
@@ -148,14 +141,7 @@ namespace Tests
                 }
 
                 //--- check result
-                Assert.IsTrue(this.EqualString(TestSeq, _readData, comp_report));
-                if (comp_report.Count > 0)
-                {
-                    for (int i = 0; i < comp_report.Count; i++)
-                    {
-                        Debug.LogWarning("  !! " + comp_report[i]);
-                    }
-                }
+                Assert.IsTrue(this.EqualString(TestSeq, _readData));
 
                 // by ReadLine()
                 Debug.Log("  >> ReadLine() test >>");
@@ -184,20 +170,13 @@ namespace Tests
                 }
 
                 //--- check result
-                Assert.IsTrue(this.EqualString(TestSeq, _readData, comp_report));
-                if (comp_report.Count > 0)
-                {
-                    for (int i = 0; i < comp_report.Count; i++)
-                    {
-                        Debug.LogWarning("  !! " + comp_report[i]);
-                    }
-                }
+                Assert.IsTrue(this.EqualString(TestSeq, _readData));
             }
         }
 
-        private bool EqualString(string ref_data, NativeList<char> data, List<string> log)
+        private bool EqualString(string ref_data, NativeList<char> data)
         {
-            log.Clear();
+            var log = new List<string>();
             var sb = new StringBuilder();
 
             if (ref_data.Length != data.Length)
@@ -226,6 +205,10 @@ namespace Tests
                     sb.Append("  [" + ((int)c_ref).ToString() + "/" + ((int)c_d).ToString() + "]\n");
                 }
                 log.Add(sb.ToString());
+                for (int i = 0; i < log.Count; i++)
+                {
+                    Debug.LogWarning("  !! " + log[i]);
+                }
                 return false;
             }
 
@@ -241,7 +224,14 @@ namespace Tests
                 }
             }
 
-            if (log.Count > 0) return false;
+            if (log.Count > 0)
+            {
+                for (int i = 0; i < log.Count; i++)
+                {
+                    Debug.LogWarning("  !! " + log[i]);
+                }
+                return false;
+            }
             return true;
         }
     }

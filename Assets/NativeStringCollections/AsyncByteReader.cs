@@ -13,18 +13,38 @@ namespace NativeStringCollections.Impl
 
     internal struct AsyncByteReaderInfo
     {
-        public long bufferSize;
-        public long fileSize;
-
-        public ReadHandle readHandle;
-
+        public int bufferSize;
+        public int dataSize;
+        
         public Boolean allocated;
-    }
 
+        private Boolean _haveReadHandle;
+        private ReadHandle _readHandle;
+
+        public ReadHandle ReadHandle
+        {
+            get { return _readHandle; }
+            set
+            {
+                this.DisposeReadHandle();
+                _readHandle = value;
+                _haveReadHandle = true;
+            }
+        }
+        public void DisposeReadHandle()
+        {
+            if (_haveReadHandle)
+            {
+                _readHandle.Dispose();
+                _haveReadHandle = false;
+            }
+        }
+        public bool HaveReadHandle { get { return _haveReadHandle; } }
+    }
 
     public unsafe struct AsyncByteReader : IDisposable
     {
-        private NativeArray<byte> _byteBuffer;
+        private NativeList<byte> _byteBuffer;
         private PtrHandle<AsyncByteReaderInfo> _info;
 
         private PtrHandle<ReadCommand> _readCmd;
@@ -32,8 +52,8 @@ namespace NativeStringCollections.Impl
         private Allocator _alloc;
 
 
-        public long BufferSize { get { return _info.Target->bufferSize; } }
-        public long Length { get { return _info.Target->fileSize; } }
+        public int BufferSize { get { return _info.Target->bufferSize; } }
+        public int Length { get { return _info.Target->dataSize; } }
 
         /// <summary>
         /// the constructor must be called by main thread only.
@@ -43,70 +63,48 @@ namespace NativeStringCollections.Impl
         {
             _alloc = alloc;
 
-            _byteBuffer = new NativeArray<byte>(Define.MinBufferSize, alloc);
+            _byteBuffer = new NativeList<byte>(Define.MinByteBufferSize, alloc);
             _info = new PtrHandle<AsyncByteReaderInfo>(alloc);
 
             _readCmd = new PtrHandle<ReadCommand>(alloc);
 
             _info.Target->bufferSize = Define.MinByteBufferSize;
-            _info.Target->fileSize = 0;
+            _info.Target->dataSize = 0;
 
             _info.Target->allocated = true;
         }
 
-        private void Reallocate(long fileSize)
+        private void Reallocate(long buffSize)
         {
             // reallocation buffer
-            if (_info.Target->bufferSize < fileSize)
+            if (_info.Target->bufferSize < buffSize)
             {
-                _byteBuffer.Dispose();
-                long new_size = _info.Target->bufferSize * ((fileSize / _info.Target->bufferSize) + 1);
+                long new_size = _info.Target->bufferSize * ((buffSize / _info.Target->bufferSize) + 1);
 
                 if (new_size > int.MaxValue)
                     throw new InvalidOperationException("too large file size. The AsyncByteReader can buffering < int.MaxValue bytes.");
 
-                _byteBuffer = new NativeArray<byte>((int)new_size, _alloc);
-                _info.Target->bufferSize = new_size;
+                _byteBuffer.ResizeUninitialized((int)new_size);
+                _info.Target->bufferSize = (int)new_size;
             }
         }
 
         public void Dispose()
         {
-            this.Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-        void Dispose(bool disposing)
-        {
-            // disposing managed resource
-            if (disposing)
-            {
+            _byteBuffer.Dispose();
 
-            }
-            // disposing unmanaged resource
-            if (_info.Target->allocated)
-            {
-                _byteBuffer.Dispose();
+            _info.Target->DisposeReadHandle();
+            _info.Dispose();
 
-                _info.Target->readHandle.Dispose();
-                _info.Dispose();
-
-                _readCmd.Dispose();
-            }
+            _readCmd.Dispose();
         }
 
         public JobHandle ReadFileAsync(string path)
         {
-            if (!_info.Target->readHandle.JobHandle.IsCompleted)
-            {
-                throw new InvalidOperationException("previous read job is still running. call Complete().");
-            }
-            else
-            {
-                _info.Target->readHandle.Dispose();
-            }
+            this.CheckPreviousJob();
 
             var fileInfo = new System.IO.FileInfo(path);
-            if (!fileInfo.Exists) throw new ArgumentException("file is not exists.");
+            if (!fileInfo.Exists) throw new ArgumentException("the file '" + path + "'is not found.");
 
             this.Reallocate(fileInfo.Length);
 
@@ -117,24 +115,62 @@ namespace NativeStringCollections.Impl
                 Buffer = _byteBuffer.GetUnsafePtr(),
             };
 
-            _info.Target->readHandle = AsyncReadManager.Read(path, _readCmd.Target, 1);
-            return _info.Target->readHandle.JobHandle;
+            _info.Target->dataSize = (int)fileInfo.Length;
+            _info.Target->ReadHandle = AsyncReadManager.Read(path, _readCmd.Target, 1);
+            return _info.Target->ReadHandle.JobHandle;
         }
+        public JobHandle ReadFileAsync(string path, int i_block)
+        {
+            this.CheckPreviousJob();
+            
+            var fileInfo = new System.IO.FileInfo(path);
+            if (!fileInfo.Exists)
+                throw new ArgumentException("the file '" + path + "'is not found.");
+
+            long bufferSize = _info.Target->bufferSize;
+            long offset = i_block * bufferSize;
+            long size = Math.Min(bufferSize, fileInfo.Length - offset);
+            if (offset >= fileInfo.Length || i_block < 0)
+            {
+                int max_index = (int)(fileInfo.Length / bufferSize);
+                throw new ArgumentOutOfRangeException($"invalid i_block. i_block must be in range of [0, {max_index}].");
+            }
+
+            *_readCmd.Target = new ReadCommand
+            {
+                Offset = offset,
+                Size = size,
+                Buffer = _byteBuffer.GetUnsafePtr(),
+            };
+
+            _info.Target->dataSize = (int)size;
+            _info.Target->ReadHandle = AsyncReadManager.Read(path, _readCmd.Target, 1);
+            return _info.Target->ReadHandle.JobHandle;
+        }
+        private void CheckPreviousJob()
+        {
+            if (_info.Target->HaveReadHandle)
+            {
+                if (!_info.Target->ReadHandle.JobHandle.IsCompleted)
+                {
+                    throw new InvalidOperationException("previous read job is still running. call Complete().");
+                }
+                else
+                {
+                    _info.Target->DisposeReadHandle();
+                }
+            }
+        }
+
         public void Complete()
         {
-            if (!_info.Target->readHandle.JobHandle.IsCompleted) _info.Target->readHandle.JobHandle.Complete();
+            _info.Target->ReadHandle.JobHandle.Complete();
         }
 
         public void* GetUnsafePtr() { return _byteBuffer.GetUnsafePtr(); }
         public byte this[int index]
         {
             get { return _byteBuffer[index]; }
-        }
-
-        private void CheckAllocator()
-        {
-            if (!UnsafeUtility.IsValidAllocator(_alloc))
-                throw new InvalidOperationException("The buffer can not be Disposed because it was not allocated with a valid allocator.");
         }
     }
 }

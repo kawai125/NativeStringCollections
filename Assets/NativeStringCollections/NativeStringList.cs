@@ -88,12 +88,7 @@ namespace NativeStringCollections
                 }
                 if (value == this.char_arr.Length) return;
 
-                var tmp = new NativeList<char>(value, _alloc);
-                tmp.Clear();
-                tmp.AddRange(this.char_arr);
-
-                this.char_arr.Dispose();
-                this.char_arr = tmp;
+                this.char_arr.Capacity = value;
 
 #if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
                 this.UpdateSignature();
@@ -115,12 +110,7 @@ namespace NativeStringCollections
                 }
                 if (value == this.elemIndexList.Length) return;
 
-                var tmp = new NativeList<ElemIndex>(value, _alloc);
-                tmp.Clear();
-                tmp.AddRange(this.elemIndexList);
-
-                this.elemIndexList.Dispose();
-                this.elemIndexList = tmp;
+                this.elemIndexList.Capacity = value;
             }
         }
 
@@ -207,10 +197,18 @@ namespace NativeStringCollections
             this.Add((char*)entity.GetUnsafePtr(), entity.Length);
         }
         /// <summary>
-        /// specialize for NativeList<char>
+        /// specialize for NativeList
         /// </summary>
-        /// <param name="entity"></param>
+        /// <param name="str"></param>
         public unsafe void Add(NativeList<char> str)
+        {
+            this.Add((char*)str.GetUnsafePtr(), str.Length);
+        }
+        /// <summary>
+        /// specialize for NativeArray
+        /// </summary>
+        /// <param name="str"></param>
+        public unsafe void Add(NativeArray<char> str)
         {
             this.Add((char*)str.GetUnsafePtr(), str.Length);
         }
@@ -244,7 +242,7 @@ namespace NativeStringCollections
         {
             this.CheckElemIndex(index);
             if (count < 0) throw new ArgumentOutOfRangeException("count must be > 0. count = " + count.ToString());
-            if (index + count >= this.Length)
+            if (index + count > this.Length)
             {
                 string txt = "invalid range. index = " + index.ToString()
                            + ", count = " + count.ToString() + ", must be < Length = " + this.Length.ToString();

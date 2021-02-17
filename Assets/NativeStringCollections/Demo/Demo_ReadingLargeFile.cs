@@ -13,230 +13,312 @@ using TMPro;
 using NativeStringCollections;
 using NativeStringCollections.Utility;
 
+using NativeStringCollections.Demo;
+
+
+class DummyParser : ITextFileParser, IDisposable
+{
+    public long Lines;
+
+    public struct DummyData
+    {
+        public long Length;
+    }
+    public DummyData Data;
+
+    public unsafe void Init()
+    {
+        Lines = 0;
+    }
+    public unsafe void Clear()
+    {
+        Lines = 0;
+    }
+    public unsafe bool ParseLine(ReadOnlyStringEntity se)
+    {
+        Lines++;
+        return true;
+    }
+    public void PostReadProc()
+    {
+        Data.Length = Lines;
+    }
+    public void UnLoad()
+    {
+
+    }
+    public void Dispose()
+    {
+        
+    }
+}
+
 public class Demo_ReadingLargeFile : MonoBehaviour
 {
     private string _path;
-    private Encoding _encoding;
-    private NativeTextStreamReader _reader;
 
-    private NativeList<char> _charBuff;
-    private NativeList<ReadOnlyStringEntity> _seBuff;
-    private bool _reading;
+    public TMP_Dropdown _dropdownEncoding;
+    private List<Encoding> _encodingList;
 
-    private List<int> _buffSizeList;
+    public TMP_Dropdown _dropdownDataSize;
+    private List<int> _dataSizeList;
 
-    private JobHandle _readJobHandle;
-    public ReadData readData;
+    public Button _generateButton;
+    public Slider _generateProgressSlider;
+    private float _generateProgress;
+    private bool _generateInCurrentProc;
+
+    public Button _loadButton;
+    public Slider _loadProgressSlider;
+    private float _loadProgress;
+    public TextMeshProUGUI _loadProgressText;
+
+    public Button _unLoadButton;
+
+    public TextMeshProUGUI _loadTimeText;
+
+    private bool _generatorPrevState;
+    private ReadState _loaderPrevState;
 
 
-    [SerializeField]
-    public TMP_Dropdown _dropdownBufferSize;
-
-    public Button _readButton;
-
-    public Slider _progressSlider;
-    private float _progress;
-
-    public TextMeshProUGUI _progressText;
+    private CharaDataGenerator _generator;
+    private AsyncTextFileLoader<CharaDataParser> _loader;
+    //private AsyncTextFileLoader<DummyParser> _loader;
 
     // Start is called before the first frame update
     void Start()
     {
-        _path = Application.dataPath + "/../sample_heavy.csv";
-        _encoding = Encoding.UTF8;
-        _reader = new NativeTextStreamReader(Allocator.Persistent);
-        _charBuff = new NativeList<char>(Allocator.Persistent);
-        _seBuff = new NativeList<ReadOnlyStringEntity>(Allocator.Persistent);
-        _reading = false;
+        NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
 
-        readData = new ReadData(Allocator.Persistent);
+        _path = Application.dataPath + "/../Assets/NativeStringCollections/Demo/sample_demo.tsv";
 
-        _buffSizeList = new List<int>();
-        _buffSizeList.Clear();
-        _buffSizeList.Add(4096);
-        _buffSizeList.Add(16384);
-        _buffSizeList.Add(65536);
-        _buffSizeList.Add(262144);
-        _buffSizeList.Add(1048576);
-        _buffSizeList.Add(1024);
+        _encodingList = new List<Encoding>();
+        _encodingList.Clear();
 
-        if (_dropdownBufferSize)
+        _encodingList.Add(Encoding.UTF8);
+        _encodingList.Add(Encoding.UTF32);
+        _encodingList.Add(Encoding.Unicode);
+        _encodingList.Add(Encoding.GetEncoding("shift_jis"));
+        _encodingList.Add(Encoding.GetEncoding("euc-jp"));
+        _encodingList.Add(Encoding.GetEncoding("iso-2022-jp"));
+
+        if (_dropdownEncoding)
         {
-            _dropdownBufferSize.ClearOptions();
+            _dropdownEncoding.ClearOptions();
 
             var drop_menu = new List<string>();
-            drop_menu.Add("  4kB (= strage page size)");
-            drop_menu.Add(" 16kB");
-            drop_menu.Add(" 64kB");
-            drop_menu.Add("256kB");
-            drop_menu.Add("  1MB");
-            drop_menu.Add("  1kB (< strage page size)");
+            foreach (var e in _encodingList)
+            {
+                drop_menu.Add(e.EncodingName);
+            }
 
-            _dropdownBufferSize.AddOptions(drop_menu);
-            _dropdownBufferSize.value = 0;
+            _dropdownEncoding.AddOptions(drop_menu);
+            _dropdownEncoding.value = 0;
         }
 
-        _progress = 0.0f;
+        _dataSizeList = new List<int>();
+        _dataSizeList.Clear();
+
+        _dataSizeList.Add(1024);
+        _dataSizeList.Add(4096);
+        _dataSizeList.Add(125000);
+        _dataSizeList.Add(250000);
+        _dataSizeList.Add(500000);
+
+        if (_dropdownDataSize)
+        {
+            _dropdownDataSize.ClearOptions();
+
+            var drop_menu = new List<string>();
+            foreach(var s in _dataSizeList)
+            {
+                drop_menu.Add(s.ToString());
+            }
+            _dropdownDataSize.AddOptions(drop_menu);
+            _dropdownDataSize.value = 0;
+        }
+
+        _generateInCurrentProc = false;
+        _generateProgress = 0.0f;
+        _loadProgress = 0.0f;
+
+
+        _generator = new CharaDataGenerator();
+        _generator.SetPath(_path);
+        _generatorPrevState = _generator.IsCompleted;
+
+        _loader = new AsyncTextFileLoader<CharaDataParser>(Allocator.Persistent);
+        //_loader = new AsyncTextFileLoader<DummyParser>(Allocator.Persistent);
+        _loader.AddFile(_path);
+        _loaderPrevState = _loader.GetState(0);
     }
     private void OnDestroy()
     {
-        _reader.Dispose();
-        _charBuff.Dispose();
-        _seBuff.Dispose();
-
-        readData.Dispose();
+        _loader.Dispose();
     }
 
     // Update is called once per frame
     void Update()
     {
+        // calling "AsyncTextFileLoader<>.Update()" on update is necessary.
+        _loader.Update();
+
+
         // progress bar
-        if(_reader.Length > 0)
+        if(_generator.N > 0 && !_generator.IsCompleted)
         {
-            _progress = (float)_reader.Pos / (float)_reader.Length;
+            _generateProgress = (float)_generator.Inc / (float)_generator.N;
         }
         else
         {
-            _progress = 0.0f;
+            if (_generator.IsCompleted && _generateInCurrentProc)
+            {
+                _generateProgress = 100.0f;
+            }
+            else
+            {
+                _generateProgress = 0.0f;
+            }
         }
-        _progressSlider.value = _progress;
+        _generateProgressSlider.value = _generateProgress;
+
+        var loadInfo = _loader.GetState(0);
+        if(loadInfo.Length > 0 && !loadInfo.IsStandby)
+        {
+            _loadProgress = (float)loadInfo.Read / (float)loadInfo.Length;
+        }
+        else
+        {
+            if (loadInfo.IsCompleted)
+            {
+                _loadProgress = 100.0f;
+            }
+            else
+            {
+                _loadProgress = 0.0f;
+            }
+        }
+        _loadProgressSlider.value = _loadProgress;
+
+
+        // update button
+        if (_generator.IsCompleted && !_generatorPrevState)
+        {
+            _generateButton.interactable = true;
+            _generateButton.name = "Write File";
+        }
+        if (loadInfo.IsCompleted)
+        {
+            _loadButton.interactable = true;
+            if(!_loaderPrevState.IsCompleted) _loadButton.name = "Load file";
+        }
+
+        if(loadInfo.RefCount > 0)
+        {
+            _unLoadButton.interactable = true;
+        }
+        else
+        {
+            _unLoadButton.interactable = false;
+        }
+
 
         // progress text
-        if(_reader.Length > 0)
+        if(loadInfo.State == ReadJobState.ParseText)
         {
-            _progressText.text = "Progress: " + _progress.ToString() + "  [" + _reader.Pos.ToString() + "/" + _reader.Length.ToString() + "]";
+            _loadProgressText.text = loadInfo.State.ToString() + ": [" + loadInfo.Read.ToString() + '/' + loadInfo.Length.ToString() + ']';
         }
         else
         {
-            _progressText.text = "no data";
-        }
-
-        // read job
-        if(_reading && _readJobHandle.IsCompleted)
-        {
-            _readJobHandle.Complete();
-
-            _readButton.interactable = true;
-            _readButton.name = "Read File";
-
-            _reading = false;
-        }
-    }
-    private struct ReadJob : IJob
-    {
-        public NativeTextStreamReader reader;
-        public ReadData data;
-
-        public NativeList<char> charBuff;
-        public NativeList<ReadOnlyStringEntity> seBuff;
-
-        public void Execute()
-        {
-            while (!reader.EndOfStream)
+            var sb = new StringBuilder();
+            sb.Append(loadInfo.State.ToString());
+            if(loadInfo.RefCount > 0)
             {
-                reader.ReadLine(charBuff);
-                var se = charBuff.ToStringEntity().GetReadOnlyEntity();
-                se.Split(',', seBuff);
-
-                // format check
-                if (seBuff.Length != 5) throw new InvalidOperationException("invalid element length");
-                if (!seBuff[1].IsIntegral()) throw new InvalidOperationException("the element[1] is not integral.");
-                if (!seBuff[2].IsIntegral()) throw new InvalidOperationException("the element[2] is not integral.");
-                if (!seBuff[3].IsIntegral()) throw new InvalidOperationException("the element[3] is not integral.");
-                if (!seBuff[4].IsIntegral()) throw new InvalidOperationException("the element[4] is not integral.");
-
-                // store value
-                seBuff[1].TryParse(out int HP);
-                seBuff[2].TryParse(out int MP);
-                seBuff[3].TryParse(out int Attack);
-                seBuff[4].TryParse(out int Defence);
-                data.Add(seBuff[0], HP, MP, Attack, Defence);
+                sb.Append(", RefCount = " + loadInfo.RefCount.ToString());
             }
+            _loadProgressText.text = sb.ToString();
+        }
 
-            data.PostReadProc();
+
+        // load time
+        if(loadInfo.State != _loaderPrevState.State)
+        {
+            if (loadInfo.IsCompleted)
+            {
+
+                var sb = new StringBuilder();
+                sb.Append("# of Lines : " + _loader[0].Lines.ToString() + '\n');
+                sb.Append("# of Data : " + _loader[0].Data.Length.ToString() + '\n');
+                sb.Append('\n');
+                sb.Append("ReadAsync: " + loadInfo.DelayReadAsync.ToString("e") + '\n');
+                sb.Append("ParseText: " + loadInfo.DelayParseText.ToString("e") + '\n');
+                sb.Append("PostProc : " + loadInfo.DelayPostProc.ToString("e") + '\n');
+                sb.Append("Total    : " + loadInfo.Delay.ToString("e") + " us\n");
+                _loadTimeText.text = sb.ToString();
+                sb.Clear();
+
+                var parser = _loader[0];
+                if (parser.ParserState != CharaDataParser.ReadMode.Complete)
+                {
+                    sb.Append("Parser ERROR:\n");
+                    sb.Append("  # of Data: " + parser.Data.Length.ToString() + '\n');
+                    sb.Append("  line     : " + parser.Lines.ToString() + '\n');
+                    sb.Append("  state    : " + parser.ParserState + '\n');
+                    sb.Append('\n');
+
+                    if(parser.ParserState == CharaDataParser.ReadMode.HeaderError)
+                    {
+                        sb.Append("  N = " + parser.N + '\n');
+                        sb.Append("  D = " + parser.D + '\n');
+                        sb.Append("  R = " + parser.R + '\n');
+                    }
+                    Debug.LogError(sb.ToString());
+                }
+            }
+            else
+            {
+                _loadTimeText.text = "---";
+            }
+        }
+
+
+        // save current state
+        _generatorPrevState = _generator.IsCompleted;
+        _loaderPrevState = _loader.GetState(0);
+    }
+
+    public void OnClickGenerateFile()
+    {
+        if (_generator.IsCompleted)
+        {
+            _generateButton.interactable = false;
+            _generateButton.name = "Now Writing...";
+
+            var e = _encodingList[_dropdownEncoding.value];
+            int n = _dataSizeList[_dropdownDataSize.value];
+            _generateInCurrentProc = true;
+            _generator.Generate(e, n, 1, 0.005f);
         }
     }
 
     public void OnClickLoadFileAsync()
     {
-        if (!_reading)
+        //_loader.LoadFileInMainThread(0);
+        //return;
+
+        var info = _loader.GetState(0);
+        if (info.IsStandby)
         {
-            _readButton.interactable = false;
-            _readButton.name = "reading...";
+            _loadButton.interactable = false;
+            _loadButton.name = "Now Loading...";
 
-            int bs_index = _dropdownBufferSize.value;
-            if (bs_index < 0 || bs_index >= _buffSizeList.Count) throw new InvalidOperationException("invalid buffer size was selected.");
-
-            int buffer_size = _buffSizeList[bs_index];
-
-            _reader.Init(_path, buffer_size);
-
-            var job = new ReadJob();
-            job.reader = _reader;
-            job.data = readData;
-            job.charBuff = _charBuff;
-            job.seBuff = _seBuff;
-
-            _readJobHandle = job.Schedule();
-
-            _reading = true;
+            _loader.Encoding = _encodingList[_dropdownEncoding.value];
+            _loader.LoadFile(0);
         }
     }
-}
-
-
-
-public struct CharactorData
-{
-    public ReadOnlyStringEntity name;
-    public int HP;
-    public int MP;
-    public int Attack;
-    public int Defence;
-}
-public struct ReadData
-{
-    private NativeStringList _nameData;
-    private NativeList<CharactorData> _data;
-
-    public ReadData(Allocator alloc)
+    public void OnClickUnLoadFile()
     {
-        _nameData = new NativeStringList(alloc);
-        _data = new NativeList<CharactorData>(alloc);
-    }
-    public CharactorData this[int index]
-    {
-        get { return _data[index]; }
-    }
-    public void Add(ReadOnlyStringEntity name, int HP, int MP, int Attack, int Defence)
-    {
-        _nameData.Add(name);
-        var se = _nameData.Last.GetReadOnlyEntity();
-
-        var tmp = new CharactorData();
-        tmp.name = se;  // this data will be invalid (because of reallocate in NativeStringList)
-        tmp.HP = HP;
-        tmp.MP = MP;
-        tmp.Attack = Attack;
-        tmp.Defence = Defence;
-
-        _data.Add(tmp);
-    }
-    public void PostReadProc()
-    {
-        // set valid StringEntity into _data
-        if (_data.Length != _nameData.Length) throw new InvalidOperationException("number of data was invalid.");
-        for(int i=0; i<_data.Length; i++)
-        {
-            var tmp_data = _data[i];
-            tmp_data.name = _nameData[i];
-            _data[i] = tmp_data;
-        }
-    }
-
-    public void Dispose()
-    {
-        _data.Dispose();
-        _nameData.Dispose();
+        _loader.UnLoadFile(0);
     }
 }
+
