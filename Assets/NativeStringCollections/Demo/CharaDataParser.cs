@@ -275,24 +275,19 @@ namespace NativeStringCollections.Demo
                     return;
                 }
             }
-
-            //--- sort read data
-            Data.Sort();
-
+            //--- overwright CharaData.Name StringEntity to _name from _tmp_name.
+            //    (the reference of CharaData.Name maybe became invalid because of reallocating in _tmp.)
             _name.Clear();
-            foreach(var tmp in Data)
+            for(int i=0; i<_tmp_name.Length; i++)
             {
-                _name.Add(tmp.Name);
-            }
-            for(int i=0; i<Data.Length; i++)
-            {
-                //--- overwright CharaData.Name StringEntity to _name (sorted) from _tmp_name (random).
-                var tmp = Data[i];
-                tmp.Name = _name[i];
-                Data[i] = tmp;
+                _name.Add( _tmp_name[i]);
+                var chara = Data[i];
+                chara.Name = _name.Last;
+                Data[i] = chara;
             }
 
             _read_mode = ReadMode.Complete;
+            return;
         }
         public void UnLoad()
         {

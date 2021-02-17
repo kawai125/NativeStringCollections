@@ -12,8 +12,8 @@ namespace NativeStringCollections
         //public const int MinByteBufferSize = 524288;  // 512kB
 
         // for AsyncTextFileLoader
-        //public const int DefaultDecodeBlock = 128;
-        public const int DefaultDecodeBlock = 512;
+        //public const int DefaultDecodeBlock = 64;
+        public const int DefaultDecodeBlock = 2048;
         public const int DefaultNumParser = 2;
         public const int NumParserLimit = 1048576;
     }

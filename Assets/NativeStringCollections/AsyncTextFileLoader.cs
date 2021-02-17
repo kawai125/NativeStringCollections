@@ -50,11 +50,22 @@ namespace NativeStringCollections
         public int Length { get; }
         public int Read { get; }
         public int RefCount { get; }
+        /// <summary>
+        /// elapsed milliseconds for AsyncReadManager.Read()
+        /// </summary>
         public double DelayReadAsync { get; }
+        /// <summary>
+        /// elapsed milliseconds for ITextFileParser.ParseLine()
+        /// </summary>
         public double DelayParseText { get; }
+        /// <summary>
+        /// elapsed milliseconds for ITextFileParser.PostReadProc()
+        /// </summary>
         public double DelayPostProc { get; }
 
-
+        /// <summary>
+        /// elapsed milliseconds to parse the file.
+        /// </summary>
         public double Delay { get { return DelayReadAsync + DelayParseText + DelayPostProc; } }
         public bool IsCompleted { get { return (State == ReadJobState.Completed); } }
         public bool IsStandby
@@ -362,7 +373,7 @@ namespace NativeStringCollections
                             // remove from loading order (file loading is not performed)
                             _updateLoadTgtTmp.RemoveAtSwapBack(found_index);
 #if UNITY_EDITOR
-                            sb.Append("  -- loading index = " + found_index.ToString() + " was cancelled.\n");
+                            sb.Append("  -- loading index = " + act.fileIndex.ToString() + " was cancelled.\n");
 #endif
                         }
                         else
@@ -373,7 +384,7 @@ namespace NativeStringCollections
                                 _data[act.fileIndex].UnLoad();
                                 _state[act.fileIndex].Target->State = ReadJobState.UnLoaded;
 #if UNITY_EDITOR
-                                sb.Append("  -- index = " + found_index.ToString() + " was unloaded.\n");
+                                sb.Append("  -- index = " + act.fileIndex.ToString() + " was unloaded.\n");
 #endif
                             }
                             else
@@ -381,7 +392,7 @@ namespace NativeStringCollections
                                 // now loading. unload request will try in next update.
                                 _requestQueue.Enqueue(act);
 #if UNITY_EDITOR
-                                sb.Append("  -- index = " + found_index.ToString() + " is loading in progress.");
+                                sb.Append("  -- index = " + act.fileIndex.ToString() + " is loading in progress.");
                                 sb.Append(" retry unload in next Update().\n");
 #endif
                             }
@@ -692,7 +703,7 @@ namespace NativeStringCollections
 
                 _timer.Create(new System.Diagnostics.Stopwatch());
                 _timer.Target.Start();
-                _timer_ms_coef = 1000000.0 / System.Diagnostics.Stopwatch.Frequency;
+                _timer_ms_coef = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             }
             public void Complete()
             {
@@ -706,7 +717,7 @@ namespace NativeStringCollections
             public void Execute()
             {
                 // read async is completed
-                _state_ptr.Target->DelayReadAsync = this.TimerElapsedMicroSeconds();
+                _state_ptr.Target->DelayReadAsync = this.TimerElapsedMilliSeconds();
                 _timer.Target.Restart();
 
                 // initialize
@@ -727,14 +738,14 @@ namespace NativeStringCollections
 
                 // parse text
                 this.ParseText();
-                _state_ptr.Target->DelayParseText = this.TimerElapsedMicroSeconds();
+                _state_ptr.Target->DelayParseText = this.TimerElapsedMilliSeconds();
                 _timer.Target.Restart();
 
                 // post proc
                 _data.Target.PostReadProc();
                 _timer.Target.Stop();
 
-                _state_ptr.Target->DelayPostProc = this.TimerElapsedMicroSeconds();
+                _state_ptr.Target->DelayPostProc = this.TimerElapsedMilliSeconds();
 
                 // wait for Complete()
                 _state_ptr.Target->State = ReadJobState.WaitForCallingComplete;
@@ -800,7 +811,7 @@ namespace NativeStringCollections
                 Debug.Log(sb.ToString());
                 */
             }
-            private double TimerElapsedMicroSeconds()
+            private double TimerElapsedMilliSeconds()
             {
                 return _timer.Target.ElapsedTicks * _timer_ms_coef;
             }

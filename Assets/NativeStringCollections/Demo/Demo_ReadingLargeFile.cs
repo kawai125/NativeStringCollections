@@ -90,17 +90,23 @@ public class Demo_ReadingLargeFile : MonoBehaviour
     {
         NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
 
+#if UNITY_EDITOR
         _path = Application.dataPath + "/../Assets/NativeStringCollections/Demo/sample_demo.tsv";
+#else
+        _path = Application.dataPath + "/sample_demo.tsv";
+#endif
 
         _encodingList = new List<Encoding>();
         _encodingList.Clear();
 
+        // default Unity doesn't have some japanese local text encodings for standalone build.
+        // ref: https://helpdesk.unity3d.co.jp/hc/ja/articles/204694010-System-Text-Encoding-%E3%81%A7-Shift-JIS-%E3%82%92%E4%BD%BF%E3%81%84%E3%81%9F%E3%81%84
         _encodingList.Add(Encoding.UTF8);
         _encodingList.Add(Encoding.UTF32);
         _encodingList.Add(Encoding.Unicode);
-        _encodingList.Add(Encoding.GetEncoding("shift_jis"));
-        _encodingList.Add(Encoding.GetEncoding("euc-jp"));
-        _encodingList.Add(Encoding.GetEncoding("iso-2022-jp"));
+        //_encodingList.Add(Encoding.GetEncoding("shift_jis"));
+        //_encodingList.Add(Encoding.GetEncoding("euc-jp"));
+        //_encodingList.Add(Encoding.GetEncoding("iso-2022-jp"));
 
         if (_dropdownEncoding)
         {
@@ -253,10 +259,11 @@ public class Demo_ReadingLargeFile : MonoBehaviour
                 sb.Append("ReadAsync: " + loadInfo.DelayReadAsync.ToString("e") + '\n');
                 sb.Append("ParseText: " + loadInfo.DelayParseText.ToString("e") + '\n');
                 sb.Append("PostProc : " + loadInfo.DelayPostProc.ToString("e") + '\n');
-                sb.Append("Total    : " + loadInfo.Delay.ToString("e") + " us\n");
+                sb.Append("Total    : " + loadInfo.Delay.ToString("e") + " ms\n");
                 _loadTimeText.text = sb.ToString();
                 sb.Clear();
 
+                /*
                 var parser = _loader[0];
                 if (parser.ParserState != CharaDataParser.ReadMode.Complete)
                 {
@@ -274,6 +281,7 @@ public class Demo_ReadingLargeFile : MonoBehaviour
                     }
                     Debug.LogError(sb.ToString());
                 }
+                */
             }
             else
             {
