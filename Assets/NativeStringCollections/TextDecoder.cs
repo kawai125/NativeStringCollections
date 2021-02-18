@@ -128,7 +128,7 @@ namespace NativeStringCollections.Impl
             while (true)
             {
                 // read charBuff by line
-                bool detect_line_factor = this.ParseLineImpl(lines);
+                bool detect_line_factor = this.ParseLineImpl(ref lines);
                 if (detect_line_factor)
                 {
                     line_count++;
@@ -155,21 +155,22 @@ namespace NativeStringCollections.Impl
             _charBuff.Clear();
             return line_count;
         }
-        private unsafe bool ParseLineImpl(NativeStringList lines)
+        private unsafe bool ParseLineImpl(ref NativeStringList lines)
         {
             // check '\r\n' is overlap between previous buffer and current buffer
             if (_info.Target->check_CR && _charBuff.Length > 0)
             {
                 if (_charBuff[0] == '\n') _charBuff.RemoveHead();
-
-                //if (_charBuff[0] == '\n') Debug.LogWarning("  >> detect overlap \\r\\n");
             }
 
-            if (_charBuff.Length == 0) return false;
+            int len_chars = _charBuff.Length;
+            char* ptr_chars = (char*)_charBuff.GetUnsafePtr();
 
-            for (int i = 0; i < _charBuff.Length; i++)
+            if (len_chars == 0) return false;
+
+            for (int i = 0; i < len_chars; i++)
             {
-                char ch = _charBuff[i];
+                char ch = ptr_chars[i];
                 // detect ch = '\n' (unix), '\r\n' (DOS), or '\r' (Mac)
                 if (ch == '\n' || ch == '\r')
                 {
@@ -181,13 +182,13 @@ namespace NativeStringCollections.Impl
                     }
                     //*/
 
-                    lines.Add((char*)_charBuff.GetUnsafePtr(), i);
+                    lines.Add(ptr_chars, i);
 
                     if (ch == '\r')
                     {
-                        if (i + 1 < _charBuff.Length)
+                        if (i + 1 < len_chars)
                         {
-                            if (_charBuff[i + 1] == '\n')
+                            if (ptr_chars[i + 1] == '\n')
                             {
                                 i++;
                                 //Debug.Log("  ** found CRLF");
