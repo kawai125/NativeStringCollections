@@ -208,10 +208,10 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
 
         // update button
-        if (_generator.IsCompleted && !_generatorPrevState)
+        if (_generator.IsCompleted)
         {
             _generateButton.interactable = true;
-            _generateButton.name = "Write File";
+            if(!_generatorPrevState) _generateButton.name = "Write File";
         }
         if (loadInfo.IsCompleted)
         {

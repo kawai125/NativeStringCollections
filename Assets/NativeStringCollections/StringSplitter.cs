@@ -196,10 +196,12 @@ namespace NativeStringCollections
         private static unsafe void SplitWhiteSpaceImpl<T>(in T source, IAddResult result)
             where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
             int start = 0;
-            for (int i = 0; i < source.Length; i++)
+            for (int i = 0; i < len_source; i++)
             {
-                if (Char.IsWhiteSpace(source[i]))
+                if (Char.IsWhiteSpace(ptr_source[i]))
                 {
                     int len = (i - start);
                     if (len > 0)
@@ -211,18 +213,20 @@ namespace NativeStringCollections
             }
 
             // final part
-            if (start < source.Length)
+            if (start < len_source)
             {
-                result.AddResult(source.Slice(start, source.Length));
+                result.AddResult(source.Slice(start, len_source));
             }
         }
         private static unsafe void SplitCharImpl<T>(in T source, char delim, IAddResult result)
             where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
             int start = 0;
-            for (int i = 0; i < source.Length; i++)
+            for (int i = 0; i < len_source; i++)
             {
-                if (source[i] == delim)
+                if (ptr_source[i] == delim)
                 {
                     int len = (i - start);
                     if (len > 0)
@@ -234,28 +238,35 @@ namespace NativeStringCollections
             }
 
             // final part
-            if (start < source.Length)
+            if (start < len_source)
             {
-                result.AddResult(source.Slice(start, source.Length));
+                result.AddResult(source.Slice(start, len_source));
             }
         }
         private static unsafe void SplitStringImpl<T>(in T source, IJaggedArraySliceBase<char> delim, IAddResult result)
             where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
+            int len_delim = delim.Length;
+            char* ptr_delim = (char*)delim.GetUnsafePtr();
+
+            if (len_delim == 0) return;
+
             int start = 0;
-            for (int i = 0; i < source.Length; i++)
+            for (int i = 0; i < len_source; i++)
             {
                 if (i < start) continue;
 
-                if (source[i] == delim[0])
+                if (ptr_source[i] == ptr_delim[0])
                 {
-                    if (source.Length - i < delim.Length) break;
+                    if (len_source - i < len_delim) break;
 
                     // delim check
                     bool is_delim = true;
-                    for (int j = 1; j < delim.Length; j++)
+                    for (int j = 1; j < len_delim; j++)
                     {
-                        if (source[i + j] != delim[j])
+                        if (ptr_source[i + j] != ptr_delim[j])
                         {
                             is_delim = false;
                             break;
@@ -269,15 +280,15 @@ namespace NativeStringCollections
                         {
                             result.AddResult(source.Slice(start, i));
                         }
-                        start = i + delim.Length;
+                        start = i + len_delim;
                     }
                 }
             }
 
             // final part
-            if (start < source.Length)
+            if (start < len_source)
             {
-                result.AddResult(source.Slice(start, source.Length));
+                result.AddResult(source.Slice(start, len_source));
             }
         }
 
