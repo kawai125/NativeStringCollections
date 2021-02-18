@@ -143,7 +143,8 @@ namespace NativeStringCollections
             this.Split(input, tmp);
             return tmp;
         }
-        public unsafe void Split<T>(T source, NativeStringList result, bool append = false) where T : IStringEntityBase, ISlice<T>
+        public unsafe void Split<T>(in T source, NativeStringList result, bool append = false)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
 
@@ -169,7 +170,7 @@ namespace NativeStringCollections
         // result container interface
         private interface IAddResult
         {
-            void AddResult(IStringEntityBase entity);
+            void AddResult(IJaggedArraySliceBase<char> entity);
         }
 
         // result container
@@ -177,22 +178,23 @@ namespace NativeStringCollections
         {
             public NativeStringList result;
 
-            public unsafe void AddResult(IStringEntityBase entity)
+            public unsafe void AddResult(IJaggedArraySliceBase<char> entity)
             {
                 result.Add((char*)entity.GetUnsafePtr(), entity.Length);
             }
         }
         private struct Result_NL_SE<T> : IAddResult 
-            where T : unmanaged, IStringEntityBase
+            where T : unmanaged, IJaggedArraySliceBase<char>
         {
             public NativeList<T> result;
 
-            public void AddResult(IStringEntityBase entity)
+            public void AddResult(IJaggedArraySliceBase<char> entity)
             {
                 result.Add((T)entity);
             }
         }
-        private static unsafe void SplitWhiteSpaceImpl<T>(T source, IAddResult result) where T : IStringEntityBase, ISlice<T>
+        private static unsafe void SplitWhiteSpaceImpl<T>(in T source, IAddResult result)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             int start = 0;
             for (int i = 0; i < source.Length; i++)
@@ -214,7 +216,8 @@ namespace NativeStringCollections
                 result.AddResult(source.Slice(start, source.Length));
             }
         }
-        private static unsafe void SplitCharImpl<T>(T source, char delim, IAddResult result) where T : IStringEntityBase, ISlice<T>
+        private static unsafe void SplitCharImpl<T>(in T source, char delim, IAddResult result)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             int start = 0;
             for (int i = 0; i < source.Length; i++)
@@ -236,7 +239,8 @@ namespace NativeStringCollections
                 result.AddResult(source.Slice(start, source.Length));
             }
         }
-        private static unsafe void SplitStringImpl<T>(T source, IStringEntityBase delim, IAddResult result) where T : IStringEntityBase, ISlice<T>
+        private static unsafe void SplitStringImpl<T>(in T source, IJaggedArraySliceBase<char> delim, IAddResult result)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             int start = 0;
             for (int i = 0; i < source.Length; i++)
@@ -305,14 +309,14 @@ namespace NativeStringCollections
         }
 
         /// <summary>
-        /// split into NativeList(IStringEntity) by Char.IsWhiteSpace() delimiter.
+        /// split into NativeList(IJaggedArraySliceBase<char>) by Char.IsWhiteSpace() delimiter.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="source"></param>
         /// <param name="result"></param>
         /// <param name="append"></param>
         public static void Split<T>(this T source, NativeList<T> result, bool append = false)
-            where T : unmanaged, IStringEntityBase, ISlice<T>
+            where T : unmanaged, IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NL_SE<T>();
@@ -326,7 +330,7 @@ namespace NativeStringCollections
         /// <param name="result"></param>
         /// <param name="append"></param>
         public static unsafe void Split<T>(this T source, NativeStringList result, bool append = false)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NSL();
@@ -340,7 +344,7 @@ namespace NativeStringCollections
         /// <param name="alloc"></param>
         /// <returns></returns>
         public static NativeStringList Split<T>(this T source, Allocator alloc)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             var tmp = new NativeStringList(alloc);
             source.Split(tmp, false);
@@ -378,7 +382,7 @@ namespace NativeStringCollections
         }
 
         /// <summary>
-        /// split into NativeList(IStringEntity) by single char delimiter.
+        /// split into NativeList(IJaggedArraySliceBase<char>) by single char delimiter.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="source"></param>
@@ -389,7 +393,7 @@ namespace NativeStringCollections
                                     char delim,
                                     NativeList<T> result,
                                     bool append = false)
-            where T : unmanaged, IStringEntityBase, ISlice<T>
+            where T : unmanaged, IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NL_SE<T>();
@@ -407,7 +411,7 @@ namespace NativeStringCollections
                                            char delim,
                                            NativeStringList result,
                                            bool append = false)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NSL();
@@ -424,7 +428,7 @@ namespace NativeStringCollections
         public static NativeStringList Split<T>(this T source,
                                                 char delim,
                                                 Allocator alloc)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             var tmp = new NativeStringList(alloc);
             source.Split(delim, tmp, false);
@@ -475,7 +479,7 @@ namespace NativeStringCollections
         /// <param name="result"></param>
         /// <param name="append"></param>
         public unsafe static void Split(this NativeList<char> source,
-                                        IStringEntityBase delim,
+                                        IJaggedArraySliceBase<char> delim,
                                         NativeStringList result,
                                         bool append = false)
         {
@@ -493,7 +497,7 @@ namespace NativeStringCollections
         /// <param name="alloc"></param>
         /// <returns>result</returns>
         public static NativeStringList Split(this NativeList<char> source,
-                                             IStringEntityBase delim,
+                                             IJaggedArraySliceBase<char> delim,
                                              Allocator alloc)
         {
             var tmp = new NativeStringList(alloc);
@@ -502,7 +506,7 @@ namespace NativeStringCollections
         }
 
         /// <summary>
-        /// split into NativeList(IStringEntity) by NativeList(char) delimiter.
+        /// split into NativeList(IJaggedArraySliceBase<char>) by NativeList(char) delimiter.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="source"></param>
@@ -513,7 +517,7 @@ namespace NativeStringCollections
                                     NativeList<char> delim,
                                     NativeList<T> result,
                                     bool append = false)
-            where T : unmanaged, IStringEntityBase, ISlice<T>
+            where T : unmanaged, IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NL_SE<T>();
@@ -521,7 +525,7 @@ namespace NativeStringCollections
             SplitStringImpl(source, delim.ToStringEntity(), res);
         }
         /// <summary>
-        /// split into NativeList(IStringEntity) by IStringEntity delimiter.
+        /// split into NativeList(IJaggedArraySliceBase<char>) by IJaggedArraySliceBase<char> delimiter.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="source"></param>
@@ -529,10 +533,10 @@ namespace NativeStringCollections
         /// <param name="result"></param>
         /// <param name="append"></param>
         public static void Split<T>(this T source,
-                                    IStringEntityBase delim,
+                                    IJaggedArraySliceBase<char> delim,
                                     NativeList<T> result,
                                     bool append = false)
-            where T : unmanaged, IStringEntityBase, ISlice<T>
+            where T : unmanaged, IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NL_SE<T>();
@@ -550,7 +554,7 @@ namespace NativeStringCollections
                                            NativeList<char> delim,
                                            NativeStringList result,
                                            bool append = false)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
             var de = delim.ToStringEntity();
@@ -568,7 +572,7 @@ namespace NativeStringCollections
         public static NativeStringList Split<T>(this T source,
                                                 NativeList<char> delim,
                                                 Allocator alloc)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             var tmp = new NativeStringList(alloc);
             source.Split(delim, tmp, false);
@@ -583,10 +587,10 @@ namespace NativeStringCollections
         /// <param name="result"></param>
         /// <param name="append"></param>
         public unsafe static void Split<T>(this T source,
-                                           IStringEntityBase delim,
+                                           IJaggedArraySliceBase<char> delim,
                                            NativeStringList result,
                                            bool append = false)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             if (!append) result.Clear();
             var res = new Result_NSL();
@@ -601,9 +605,9 @@ namespace NativeStringCollections
         /// <param name="alloc"></param>
         /// <returns></returns>
         public static NativeStringList Split<T>(this T source,
-                                                IStringEntityBase delim,
+                                                IJaggedArraySliceBase<char> delim,
                                                 Allocator alloc)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             var tmp = new NativeStringList(alloc);
             source.Split(delim, tmp, false);

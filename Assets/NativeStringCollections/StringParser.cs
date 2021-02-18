@@ -704,7 +704,7 @@ namespace NativeStringCollections
         /// </summary>
         /// <param name="buff">output</param>
         /// <param name="str">source</param>
-        public unsafe void GetBytes(NativeList<byte> buff, IStringEntityBase str)
+        public unsafe void GetBytes(NativeList<byte> buff, IJaggedArraySliceBase<char> str)
         {
             this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
         }

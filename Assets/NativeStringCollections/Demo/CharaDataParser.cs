@@ -7,7 +7,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
 using NativeStringCollections;
-
+using NativeStringCollections.Utility;
 
 namespace NativeStringCollections.Demo
 {

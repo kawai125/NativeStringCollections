@@ -313,9 +313,9 @@ namespace NativeStringCollections
             if (_requestQueue.Count > 0)
             {
                 sb.Append(" >> AsyncTextFileLoader.Update() >> \n");
-                sb.Append("   _requestQueue.Count = " + _requestQueue.Count.ToString() + '\n');
-                sb.Append("   _runningJob.Length  = " + _runningJob.Length.ToString() + '\n');
-                sb.Append("   _maxJobCount        = " + _maxJobCount.ToString() + '\n');
+                sb.Append($"   _requestQueue.Count = {_requestQueue.Count}\n");
+                sb.Append($"   _runningJob.Length  = {_runningJob.Length}\n");
+                sb.Append($"   _maxJobCount        = {_maxJobCount}\n");
             }
 #endif
             // no requests. or all available parser were running. retry in next Update().
@@ -373,7 +373,7 @@ namespace NativeStringCollections
                             // remove from loading order (file loading is not performed)
                             _updateLoadTgtTmp.RemoveAtSwapBack(found_index);
 #if UNITY_EDITOR
-                            sb.Append("  -- loading index = " + act.fileIndex.ToString() + " was cancelled.\n");
+                            sb.Append($"  -- loading index = {act.fileIndex} was cancelled.\n");
 #endif
                         }
                         else
@@ -384,7 +384,7 @@ namespace NativeStringCollections
                                 _data[act.fileIndex].UnLoad();
                                 _state[act.fileIndex].Target->State = ReadJobState.UnLoaded;
 #if UNITY_EDITOR
-                                sb.Append("  -- index = " + act.fileIndex.ToString() + " was unloaded.\n");
+                                sb.Append($"  -- index = {act.fileIndex} was unloaded.\n");
 #endif
                             }
                             else
@@ -392,7 +392,7 @@ namespace NativeStringCollections
                                 // now loading. unload request will try in next update.
                                 _requestQueue.Enqueue(act);
 #if UNITY_EDITOR
-                                sb.Append("  -- index = " + act.fileIndex.ToString() + " is loading in progress.");
+                                sb.Append($"  -- index = {act.fileIndex} is loading in progress.");
                                 sb.Append(" retry unload in next Update().\n");
 #endif
                             }
@@ -403,7 +403,7 @@ namespace NativeStringCollections
 #if UNITY_EDITOR
                         var sb_e = new StringBuilder();
                         sb_e.Append(" >> AsyncTextFileLoader.Update() >> \n");
-                        sb_e.Append("  invalid unloading for index = " + act.fileIndex.ToString() + ".\n");
+                        sb_e.Append($"  invalid unloading for index = {act.fileIndex}.\n");
                         Debug.LogError(sb_e.ToString());
 #endif
                         throw new InvalidOperationException("invalid UnLoading.");
@@ -423,7 +423,7 @@ namespace NativeStringCollections
 #if UNITY_EDITOR
             if(n_add_parser > 0)
             {
-                sb.Append("   " + n_add_parser.ToString() + " parsers were generated.\n");
+                sb.Append($"   {n_add_parser} parsers were generated.\n");
             }
 #endif
 
@@ -439,8 +439,8 @@ namespace NativeStringCollections
                 p_tmp.ReadFileAsync(_fileList[file_index], _encoding, _data[file_index], p_state);
                 _runningJob.Add(new JobInfo(file_index, p_id));
 #if UNITY_EDITOR
-                sb.Append("   run the ParseJob: file index = " + file_index.ToString());
-                sb.Append(", parser_id = " + p_id.ToString() + '\n');
+                sb.Append($"   run the ParseJob: file index = {file_index}");
+                sb.Append($", parser_id = {p_id}\n");
 #endif
             }
 
@@ -492,7 +492,7 @@ namespace NativeStringCollections
 #if UNITY_EDITOR
                 var sb = new StringBuilder();
                 sb.Append(" >> AsyncTextFileLoader >> \n");
-                sb.Append("  parser id = " + parser_id.ToString() + " was returned into pool.\n");
+                sb.Append($"  parser id = {parser_id} was returned into pool.\n");
                 Debug.Log(sb.ToString());
 #endif
             }
@@ -504,8 +504,8 @@ namespace NativeStringCollections
 #if UNITY_EDITOR
                 var sb = new StringBuilder();
                 sb.Append(" >> AsyncTextFileLoader >> \n");
-                sb.Append("  parser id = " + parser_id.ToString() + " was disposed.\n");
-                sb.Append("  total parser = " + _parserPool.Count.ToString() + "\n");
+                sb.Append($"  parser id = {parser_id} was disposed.\n");
+                sb.Append($"  total parser = {_parserPool.Count}\n");
                 Debug.Log(sb.ToString());
 #endif
             }
@@ -517,7 +517,6 @@ namespace NativeStringCollections
         /// <param name="index"></param>
         public unsafe void LoadFileInMainThread(int file_index)
         {
-#if UNITY_EDITOR
             var p_state = _state[file_index];
 
             if(p_state.Target->RefCount == 0)
@@ -530,9 +529,6 @@ namespace NativeStringCollections
             }
 
             p_state.Target->RefCount++;
-#else
-            throw new InvalidOperationException("this function is use in UnityEditer only. use LoadFile(int index).");
-#endif
         }
     }
 
@@ -762,7 +758,7 @@ namespace NativeStringCollections
                     for (int i=0; i<_lines.Length; i++)
                     {
                         var str = _lines[i];
-                        continue_flag = _data.Target.ParseLine(str.GetReadOnlyEntity());
+                        continue_flag = _data.Target.ParseLine(str.GetReadOnly());
 
                         // abort
                         if (!continue_flag)
@@ -810,6 +806,7 @@ namespace NativeStringCollections
                 }
                 Debug.Log(sb.ToString());
                 */
+                
             }
             private double TimerElapsedMilliSeconds()
             {

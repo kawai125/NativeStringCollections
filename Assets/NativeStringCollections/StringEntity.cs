@@ -1,11 +1,9 @@
-﻿// enable the below macro to enable reallocation trace for debug.
-//#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-
-using System;
+﻿using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 using Unity.Mathematics;
 using Unity.Collections;
@@ -16,27 +14,19 @@ namespace NativeStringCollections
 {
     using NativeStringCollections.Impl;
 
+    // Note: the implementation of StringEntity is almost same with NativeJaggedArraySlice<T>.
+    //       however, if write as "struct StringEntity { private NativeJaggedArraySlice<char> _slice; }"
+    //       cause CS1292 with StringSplitter.Split() in UnityEditor.
+    //       (MS Visual Studio compiles successfully.)
+    //
+    // Date : 2021/2/18
+    //        Unity 2019.4.20f1
+    //        MS Visual Studio Community 16.8.5
+    //        MS .NET framework 4.8.04084
 
-    unsafe public interface IStringEntityBase
-    {
-        int Length { get; }
-        char this[int index] { get; }
-        bool EqualsStringEntity(IStringEntityBase entityBase);
-        bool EqualsStringEntity(char* ptr, int Length);
-        bool Equals(StringEntity entityBase);
-        bool Equals(ReadOnlyStringEntity entityBase);
-        bool Equals(char* ptr, int Length);
-        void* GetUnsafePtr();
-    }
-    public interface ISlice<T>
-    {
-        T Slice(int begin = -1, int end = -1);
-    }
-
-    [StructLayout(LayoutKind.Auto)]
-    public readonly unsafe struct StringEntity :
+    public unsafe readonly struct StringEntity :
         IParseExt,
-        IStringEntityBase,
+        IJaggedArraySliceBase<char>,
         ISlice<StringEntity>,
         IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
         IEnumerable<char>
@@ -48,13 +38,13 @@ namespace NativeStringCollections
         public int Length { get { return _len; } }
 
 
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
         [NativeDisableUnsafePtrRestriction]
         private readonly long* _gen_ptr;
         private readonly long _gen_entity;
 #endif
 
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
         public StringEntity(char* ptr, int Length, long* gen_ptr, long gen_entity)
         {
             _ptr = ptr;
@@ -70,6 +60,20 @@ namespace NativeStringCollections
             _len = Length;
         }
 #endif
+        public StringEntity(NativeJaggedArraySlice<char> slice)
+        {
+            _ptr = slice._ptr;
+            _len = slice._len;
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            _gen_ptr = slice._gen_ptr;
+            _gen_entity = slice._gen_entity;
+#endif
+        }
+        public StringEntity(StringEntity entity)
+        {
+            this = entity;
+        }
 
         public char this[int index]
         {
@@ -81,26 +85,27 @@ namespace NativeStringCollections
             set
             {
                 this.CheckReallocate();
-                this.CheckCharIndex(index);
+                this.CheckElemIndex(index);
                 *(_ptr + index) = value;
             }
         }
         public char At(int index)
         {
             this.CheckReallocate();
-            this.CheckCharIndex(index);
+            this.CheckElemIndex(index);
             return this[index];
         }
         public StringEntity Slice(int begin = -1, int end = -1)
         {
             if (begin < 0) begin = 0;
             if (end < 0) end = _len;
+            this.CheckSliceRange(begin, end);
 
             int new_len = end - begin;
-            if (new_len < 0) throw new ArgumentOutOfRangeException("invalid range. the begin > the end.");
 
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
             this.CheckReallocate();
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
             return new StringEntity(_ptr + begin, new_len, _gen_ptr, _gen_entity);
 #else
             return new StringEntity(_ptr + begin, new_len);
@@ -115,20 +120,17 @@ namespace NativeStringCollections
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public ReadOnlyStringEntity GetReadOnlyEntity() {
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+        public ReadOnlyStringEntity GetReadOnlySlice()
+        {
             this.CheckReallocate();
-            return new ReadOnlyStringEntity(_ptr, _len, _gen_ptr, _gen_entity);
-#else
-            return new ReadOnlyStringEntity(_ptr, _len);
-#endif
+            return new ReadOnlyStringEntity(this);
         }
         public static implicit operator ReadOnlyStringEntity(StringEntity val)
         {
-            return val.GetReadOnlyEntity();
+            return val.GetReadOnlySlice();
         }
 
-        public bool EqualsStringEntity(char* ptr, int Length)
+        public bool Equals(char* ptr, int Length)
         {
             this.CheckReallocate();
             if (_len != Length) return false;
@@ -136,16 +138,12 @@ namespace NativeStringCollections
             // pointing same target
             if (_ptr == ptr) return true;
 
-            for(int i=0; i<_len; i++)
+            for (int i = 0; i < _len; i++)
             {
                 if (_ptr[i] != ptr[i]) return false;
             }
 
             return true;
-        }
-        public bool EqualsStringEntity(IStringEntityBase entity)
-        {
-            return entity.EqualsStringEntity(_ptr, _len);
         }
         public bool Equals(StringEntity entity)
         {
@@ -157,39 +155,34 @@ namespace NativeStringCollections
             this.CheckReallocate();
             return entity.Equals(_ptr, _len);
         }
-        public bool Equals(char* ptr, int Length)
+        public bool Equals(NativeJaggedArraySlice<char> slice)
         {
             this.CheckReallocate();
-            if (_len != Length) return false;
-
-            for (int i = 0; i < Length; i++)
-            {
-                if (_ptr[i] != ptr[i]) return false;
-            }
-
-            return true;
+            return slice.Equals(_ptr, _len);
+        }
+        public bool Equals(ReadOnlyNativeJaggedArraySlice<char> slice)
+        {
+            this.CheckReallocate();
+            return slice.Equals(_ptr, _len);
         }
         public bool Equals(string str)
         {
-            this.CheckReallocate();
-            if (_len != str.Length) return false;
+            if (this.Length != str.Length) return false;
             return this.SequenceEqual<char>(str);
         }
         public bool Equals(char[] c_arr)
         {
-            this.CheckReallocate();
-            if (_len != c_arr.Length) return false;
+            if (this.Length != c_arr.Length) return false;
             return this.SequenceEqual<char>(c_arr);
         }
         public bool Equals(char c)
         {
-            this.CheckReallocate();
-            return (_len == 1 && this[0] == c);
+            return (this.Length == 1 && this[0] == c);
         }
-        public bool Equals(IEnumerable<char> str_itr)
+        public bool Equals(IEnumerable<char> in_itr)
         {
             this.CheckReallocate();
-            return this.SequenceEqual<char>(str_itr);
+            return this.SequenceEqual<char>(in_itr);
         }
         public static bool operator ==(StringEntity lhs, StringEntity rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(StringEntity lhs, StringEntity rhs) { return !lhs.Equals(rhs); }
@@ -199,17 +192,22 @@ namespace NativeStringCollections
         public static bool operator !=(StringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
         public override bool Equals(object obj)
         {
-            return obj is IStringEntityBase && ((IStringEntityBase)obj).EqualsStringEntity(_ptr, _len);
+            return obj is StringEntity && ((IJaggedArraySliceBase<char>)obj).Equals(_ptr, _len);
         }
         public override int GetHashCode()
         {
             this.CheckReallocate();
             int hash = _len.GetHashCode();
-            for(int i=0; i<_len; i++)
+            for (int i = 0; i < _len; i++)
             {
                 hash = hash ^ this[i].GetHashCode();
             }
             return hash;
+        }
+
+        public ReadOnlyStringEntity GetReadOnly()
+        {
+            return new ReadOnlyStringEntity(this);
         }
 
         public override string ToString()
@@ -217,176 +215,128 @@ namespace NativeStringCollections
             this.CheckReallocate();
             return new string(_ptr, 0, _len);
         }
-        public char[] ToCharArray()
+        public char[] ToArray()
         {
             this.CheckReallocate();
             char[] ret = new char[_len];
-            for(int i=0; i<_len; i++)
+            for (int i = 0; i < _len; i++)
             {
                 ret[i] = this[i];
             }
             return ret;
         }
-
-        private void CheckCharIndex(int index)
+        public NativeArray<char> ToNativeArray(Allocator alloc)
         {
-#if UNITY_ASSERTIONS
+            this.CheckReallocate();
+            var ret = new NativeArray<char>(_len, alloc);
+            UnsafeUtility.MemCpy(ret.GetUnsafePtr(), this.GetUnsafePtr(), UnsafeUtility.SizeOf<char>() * _len);
+            return ret;
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        private void CheckElemIndex(int index)
+        {
             if (index < 0 || _len <= index)
             {
                 // simple exception patterns only can be used in BurstCompiler.
                 throw new IndexOutOfRangeException("index is out of range.");
             }
-#endif
         }
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        private void CheckSliceRange(int begin, int end)
+        {
+            int new_len = end - begin;
+            if (end > _len) throw new ArgumentOutOfRangeException($"invalid range. end = {end} <= Length = {_len}");
+            if (new_len < 0) throw new ArgumentOutOfRangeException($"invalid range. begin = {begin} > end = {end}.");
+        }
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
         private void CheckReallocate()
         {
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-            if(_gen_ptr == null && _gen_entity == -1) return;  // ignore case for StringEntityGeneratorExt
-            if( *(_gen_ptr) != _gen_entity)
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            if (_gen_ptr == null && _gen_entity == -1) return;  // ignore case for NativeJaggedArraySliceGeneratorExt
+            if (*(_gen_ptr) != _gen_entity)
             {
-                throw new InvalidOperationException("this entity is invalid reference.");
+                throw new InvalidOperationException("this StringEntity is invalid reference.");
             }
 #endif
         }
 
         public void* GetUnsafePtr() { return _ptr; }
     }
-    [StructLayout(LayoutKind.Auto)]
+
     public readonly unsafe struct ReadOnlyStringEntity :
         IParseExt,
-        IStringEntityBase,
+        IJaggedArraySliceBase<char>,
         ISlice<ReadOnlyStringEntity>,
         IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
         IEnumerable<char>
     {
-        [NativeDisableUnsafePtrRestriction]
-        private readonly char* _ptr;
-        private readonly int _len;
+        private readonly StringEntity _entity;
 
-        public int Length { get { return _len; } }
+        public int Length { get { return _entity.Length; } }
 
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-        [NativeDisableUnsafePtrRestriction]
-        private readonly long* _gen_ptr;
-        private readonly long _gen_entity;
-#endif
-
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-        public ReadOnlyStringEntity(char* ptr, int Length, long* gen_ptr, long gen_entity)
+        public ReadOnlyStringEntity(NativeJaggedArraySlice<char> slice)
         {
-            _ptr = ptr;
-            _len = Length;
-
-            _gen_ptr = gen_ptr;
-            _gen_entity = gen_entity;
+            _entity = new StringEntity(slice);
         }
-#else
-        public ReadOnlyStringEntity(char* ptr, int Length)
+        public ReadOnlyStringEntity(StringEntity entity)
         {
-            _ptr = ptr;
-            _len = Length;
+            _entity = entity;
         }
-#endif
 
         public char this[int index]
         {
-            get
-            {
-                this.CheckReallocate();
-                return *(_ptr + index);
-            }
+            get { return _entity[index]; }
         }
-        public char At(int index)
-        {
-            this.CheckReallocate();
-            this.CheckCharIndex(index);
-            return this[index];
-        }
+        public char At(int index) { return _entity.At(index); }
         public ReadOnlyStringEntity Slice(int begin = -1, int end = -1)
         {
-            if (begin < 0) begin = 0;
-            if (end < 0) end = _len;
-
-            int new_len = end - begin;
-            if (new_len < 0) throw new ArgumentOutOfRangeException("invalid range. the begin > the end.");
-
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-            this.CheckReallocate();
-            return new ReadOnlyStringEntity(_ptr + begin, new_len, _gen_ptr, _gen_entity);
-#else
-            return new ReadOnlyStringEntity(_ptr + begin, new_len);
-#endif
+            return new ReadOnlyStringEntity(_entity.Slice(begin, end));
         }
 
         public IEnumerator<char> GetEnumerator()
         {
-            this.CheckReallocate();
-            for (int i = 0; i < _len; i++)
+            for (int i = 0; i < this.Length; i++)
                 yield return this[i];
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public bool EqualsStringEntity(char* ptr, int Length)
+        public bool Equals(char* ptr, int Length)
         {
-            this.CheckReallocate();
-            if (_len != Length) return false;
-
-            // pointing same target
-            if (_ptr == ptr) return true;
-
-            for (int i = 0; i < _len; i++)
-            {
-                if (_ptr[i] != ptr[i]) return false;
-            }
-
-            return true;
+            return _entity.Equals(ptr, Length);
         }
-        public bool EqualsStringEntity(IStringEntityBase entity)
+        public unsafe bool Equals(NativeJaggedArraySlice<char> slice)
         {
-            return entity.EqualsStringEntity(_ptr, _len);
+            return _entity.Equals(slice);
+        }
+        public unsafe bool Equals(ReadOnlyNativeJaggedArraySlice<char> slice)
+        {
+            return _entity.Equals(slice);
         }
         public bool Equals(StringEntity entity)
         {
-            this.CheckReallocate();
-            return entity.Equals(_ptr, _len);
+            return entity.Equals((char*)_entity.GetUnsafePtr(), _entity.Length);
         }
         public bool Equals(ReadOnlyStringEntity entity)
         {
-            this.CheckReallocate();
-            return entity.Equals(_ptr, _len);
-        }
-        public bool Equals(char* ptr, int Length)
-        {
-            this.CheckReallocate();
-            if (_len != Length) return false;
-
-            for (int i = 0; i < Length; i++)
-            {
-                if (_ptr[i] != ptr[i]) return false;
-            }
-
-            return true;
+            return entity.Equals((char*)_entity.GetUnsafePtr(), _entity.Length);
         }
         public bool Equals(string str)
         {
-            this.CheckReallocate();
-            if (_len != str.Length) return false;
+            if (_entity.Length != str.Length) return false;
             return this.SequenceEqual<char>(str);
         }
         public bool Equals(char[] c_arr)
         {
-            this.CheckReallocate();
-            if (_len != c_arr.Length) return false;
+            if (_entity.Length != c_arr.Length) return false;
             return this.SequenceEqual<char>(c_arr);
         }
         public bool Equals(char c)
         {
-            this.CheckReallocate();
-            return (_len == 1 && this[0] == c);
+            return (_entity.Length == 1 && this[0] == c);
         }
         public bool Equals(IEnumerable<char> str_itr)
         {
-            this.CheckReallocate();
             return this.SequenceEqual<char>(str_itr);
         }
         public static bool operator ==(ReadOnlyStringEntity lhs, StringEntity rhs) { return lhs.Equals(rhs); }
@@ -397,57 +347,26 @@ namespace NativeStringCollections
         public static bool operator !=(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
         public override bool Equals(object obj)
         {
-            return obj is IStringEntityBase && ((IStringEntityBase)obj).EqualsStringEntity(_ptr, _len);
+            return obj is IJaggedArraySliceBase<char> && ((IJaggedArraySliceBase<char>)obj).Equals((char*)_entity.GetUnsafePtr(), _entity.Length);
         }
         public override int GetHashCode()
         {
-            this.CheckReallocate();
-            int hash = _len.GetHashCode();
-            for (int i = 0; i < _len; i++)
-            {
-                hash = hash ^ this[i].GetHashCode();
-            }
-            return hash;
+            return _entity.GetHashCode();
         }
 
         public override string ToString()
         {
-            this.CheckReallocate();
-            return new string(_ptr, 0, _len);
+            return new string((char*)_entity.GetUnsafePtr(), 0, _entity.Length);
         }
-        public char[] ToCharArray()
+        public char[] ToArray()
         {
-            this.CheckReallocate();
-            char[] ret = new char[this.Length];
-            for (int i = 0; i < this.Length; i++)
-            {
-                ret[i] = this[i];
-            }
-            return ret;
+            return _entity.ToArray();
         }
-
-        private void CheckCharIndex(int index)
+        public NativeArray<char> ToNativeArray(Allocator alloc)
         {
-#if UNITY_ASSERTIONS
-            if (index < 0 || this.Length <= index)
-            {
-                // simple exception patterns only can be used in BurstCompiler.
-                throw new IndexOutOfRangeException("index is out of range.");
-            }
-#endif
+            return _entity.ToNativeArray(alloc);
         }
-        private void CheckReallocate()
-        {
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-            if(_gen_entity == -1) return;  // ignore case for StringEntityGeneratorExt
-            if (*(_gen_ptr) != _gen_entity)
-            {
-                throw new InvalidOperationException("this entity is invalid reference.");
-            }
-#endif
-        }
-
-        public void* GetUnsafePtr() { return _ptr; }
+        public void* GetUnsafePtr() { return _entity.GetUnsafePtr(); }
     }
 
 
@@ -463,11 +382,7 @@ namespace NativeStringCollections
             /// <returns></returns>
             public unsafe static StringEntity ToStringEntity(this NativeList<char> source)
             {
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-                return new StringEntity((char*)source.GetUnsafePtr(), source.Length, null, -1);
-#else
-                return new StringEntity((char*)source.GetUnsafePtr(), source.Length);
-#endif
+                return new StringEntity(source.ToNativeJaggedArraySlice());
             }
             /// <summary>
             /// StringEntity generator for NativeList.
@@ -477,11 +392,7 @@ namespace NativeStringCollections
             /// <returns></returns>
             public unsafe static StringEntity ToStringEntity(this NativeArray<char> source)
             {
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-                return new StringEntity((char*)source.GetUnsafePtr(), source.Length, null, -1);
-#else
-                return new StringEntity((char*)source.GetUnsafePtr(), source.Length);
-#endif
+                return new StringEntity(source.ToNativeJaggedArraySlice());
             }
         }
     }

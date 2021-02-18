@@ -129,9 +129,9 @@ namespace Tests
             {
                 StringEntity entity = str_native[i];
                 string str_e = entity.ToString();
-                char[] c_arr_e = entity.ToCharArray();
+                char[] c_arr_e = entity.ToArray();
 
-                ReadOnlyStringEntity entity_ro = entity.GetReadOnlyEntity();
+                ReadOnlyStringEntity entity_ro = entity.GetReadOnly();
 
                 string str = str_list[i];
                 char[] c_arr = str.ToCharArray();
@@ -173,7 +173,7 @@ namespace Tests
                 int index = random.Next(0, i_range);
 
                 StringEntity entity = str_native.At(index);
-                ReadOnlyStringEntity entity_ro = entity.GetReadOnlyEntity();
+                ReadOnlyStringEntity entity_ro = entity.GetReadOnly();
 
                 //Debug.Log("delete: index = " + index.ToString());
 

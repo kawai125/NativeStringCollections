@@ -210,7 +210,8 @@ namespace Tests
 
             return check;
         }
-        private bool CheckSplitterResult<T>(NativeList<T> result, List<string> ref_data) where T : unmanaged, IStringEntityBase, IEquatable<string>
+        private bool CheckSplitterResult<T>(NativeList<T> result, List<string> ref_data)
+            where T : unmanaged, IJaggedArraySliceBase<char>, IEquatable<string>
         {
             var sb = new StringBuilder();
 

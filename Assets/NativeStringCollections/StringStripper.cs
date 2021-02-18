@@ -18,8 +18,8 @@ namespace NativeStringCollections
     public static class StringStripperExt
     {
 
-        private unsafe static T StripWhiteSpaceImpl<T>(T source, bool left, bool right)
-            where T : IStringEntityBase, ISlice<T>
+        private unsafe static T StripWhiteSpaceImpl<T>(in T source, bool left, bool right)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             // L side
             int start = 0;
@@ -61,8 +61,8 @@ namespace NativeStringCollections
                 return (T)source.Slice(0,0);
             }
         }
-        private unsafe static T StripCharImpl<T>(T source, char target, bool left, bool right)
-            where T : IStringEntityBase, ISlice<T>
+        private unsafe static T StripCharImpl<T>(in T source, char target, bool left, bool right)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             // L side
             int start = 0;
@@ -104,10 +104,10 @@ namespace NativeStringCollections
                 return (T)source.Slice(0, 0);
             }
         }
-        private unsafe static T StripStringImpl<T>(T source,
-                                                   IStringEntityBase target,
+        private unsafe static T StripStringImpl<T>(in T source,
+                                                   IJaggedArraySliceBase<char> target,
                                                    bool left, bool right)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             // L side
             int start = 0;
@@ -185,7 +185,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <returns></returns>
         public unsafe static T Lstrip<T>(this T source)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, true, false);
         }
@@ -196,7 +196,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <returns></returns>
         public unsafe static T Rstrip<T>(this T source)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, false, true);
         }
@@ -207,7 +207,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <returns></returns>
         public unsafe static T Strip<T>(this T source)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, true, true);
         }
@@ -219,7 +219,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Lstrip<T>(this T source, char target)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripCharImpl(source, target, true, false);
         }
@@ -231,7 +231,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Rstrip<T>(this T source, char target)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripCharImpl(source, target, false, true);
         }
@@ -243,7 +243,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Strip<T>(this T source, char target)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripCharImpl(source, target, true, true);
         }
@@ -255,7 +255,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Lstrip<T>(this T source, NativeList<char> target)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), true, false);
         }
@@ -267,7 +267,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Rstrip<T>(this T source, NativeList<char> target)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), false, true);
         }
@@ -279,7 +279,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Strip<T>(this T source, NativeList<char> target)
-            where T : IStringEntityBase, ISlice<T>
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), true, true);
         }
@@ -290,8 +290,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Lstrip<T>(this T source, IStringEntityBase target)
-            where T : IStringEntityBase, ISlice<T>
+        public unsafe static T Lstrip<T>(this T source, IJaggedArraySliceBase<char> target)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripStringImpl(source, target, true, false);
         }
@@ -302,8 +302,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Rstrip<T>(this T source, IStringEntityBase target)
-            where T : IStringEntityBase, ISlice<T>
+        public unsafe static T Rstrip<T>(this T source, IJaggedArraySliceBase<char> target)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripStringImpl(source, target, false, true);
         }
@@ -314,8 +314,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Strip<T>(this T source, IStringEntityBase target)
-            where T : IStringEntityBase, ISlice<T>
+        public unsafe static T Strip<T>(this T source, IJaggedArraySliceBase<char> target)
+            where T : IJaggedArraySliceBase<char>, ISlice<T>
         {
             return StripStringImpl(source, target, true, true);
         }
@@ -553,7 +553,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <param name="result"></param>
-        public unsafe static void Lstrip(this NativeList<char> source, IStringEntityBase target, NativeList<char> result)
+        public unsafe static void Lstrip(this NativeList<char> source, IJaggedArraySliceBase<char> target, NativeList<char> result)
         {
             result.Clear();
             var se = StripStringImpl(source.ToStringEntity(), target, true, false);
@@ -565,7 +565,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <param name="result"></param>
-        public unsafe static void Rstrip(this NativeList<char> source, IStringEntityBase target, NativeList<char> result)
+        public unsafe static void Rstrip(this NativeList<char> source, IJaggedArraySliceBase<char> target, NativeList<char> result)
         {
             result.Clear();
             var se = StripStringImpl(source.ToStringEntity(), target, false, true);
@@ -577,7 +577,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <param name="result"></param>
-        public unsafe static void Strip(this NativeList<char> source, IStringEntityBase target, NativeList<char> result)
+        public unsafe static void Strip(this NativeList<char> source, IJaggedArraySliceBase<char> target, NativeList<char> result)
         {
             result.Clear();
             var se = StripStringImpl(source.ToStringEntity(), target, true, true);
@@ -590,7 +590,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeList<char> Lstrip(this NativeList<char> source, IStringEntityBase target, Allocator alloc)
+        public static NativeList<char> Lstrip(this NativeList<char> source, IJaggedArraySliceBase<char> target, Allocator alloc)
         {
             var tmp = new NativeList<char>(alloc);
             Lstrip(source, target, tmp);
@@ -603,7 +603,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeList<char> Rstrip(this NativeList<char> source, IStringEntityBase target, Allocator alloc)
+        public static NativeList<char> Rstrip(this NativeList<char> source, IJaggedArraySliceBase<char> target, Allocator alloc)
         {
             var tmp = new NativeList<char>(alloc);
             Rstrip(source, target, tmp);
@@ -616,7 +616,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeList<char> Strip(this NativeList<char> source, IStringEntityBase target, Allocator alloc)
+        public static NativeList<char> Strip(this NativeList<char> source, IJaggedArraySliceBase<char> target, Allocator alloc)
         {
             var tmp = new NativeList<char>(alloc);
             Strip(source, target, tmp);

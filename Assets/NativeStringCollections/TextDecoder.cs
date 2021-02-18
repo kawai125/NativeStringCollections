@@ -179,7 +179,7 @@ namespace NativeStringCollections.Impl
                     {
                         //Debug.Log("  ** before LF = " + ((int)_charBuff[i-1]).ToString());
                     }
-                    */
+                    //*/
 
                     lines.Add((char*)_charBuff.GetUnsafePtr(), i);
 

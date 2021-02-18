@@ -68,6 +68,7 @@ public class Demo_ReadingLargeFile : MonoBehaviour
     private float _generateProgress;
     private bool _generateInCurrentProc;
 
+    public Toggle _toggleLoadFileInMainThread;
     public Button _loadButton;
     public Slider _loadProgressSlider;
     private float _loadProgress;
@@ -88,12 +89,11 @@ public class Demo_ReadingLargeFile : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
-
 #if UNITY_EDITOR
+        NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
         _path = Application.dataPath + "/../Assets/NativeStringCollections/Demo/sample_demo.tsv";
 #else
-        _path = Application.dataPath + "/sample_demo.tsv";
+        _path = Application.dataPath + "/../sample_demo.tsv";
 #endif
 
         _encodingList = new List<Encoding>();
@@ -311,17 +311,22 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
     public void OnClickLoadFileAsync()
     {
-        //_loader.LoadFileInMainThread(0);
-        //return;
-
-        var info = _loader.GetState(0);
-        if (info.IsStandby)
+        if (_toggleLoadFileInMainThread.isOn)
         {
-            _loadButton.interactable = false;
-            _loadButton.name = "Now Loading...";
+            _loader.LoadFileInMainThread(0);
+            return;
+        }
+        else
+        {
+            var info = _loader.GetState(0);
+            if (info.IsStandby)
+            {
+                _loadButton.interactable = false;
+                _loadButton.name = "Now Loading...";
 
-            _loader.Encoding = _encodingList[_dropdownEncoding.value];
-            _loader.LoadFile(0);
+                _loader.Encoding = _encodingList[_dropdownEncoding.value];
+                _loader.LoadFile(0);
+            }
         }
     }
     public void OnClickUnLoadFile()
