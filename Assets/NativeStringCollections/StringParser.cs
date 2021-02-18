@@ -721,27 +721,30 @@ namespace NativeStringCollections
         /// </summary>
         /// <param name="buff">output</param>
         /// <param name="str">source</param>
-        public unsafe void GetBytes(NativeList<byte> buff, NativeArray<char> str)
+        /// <returns>convert successfull or not</returns>
+        public unsafe bool GetBytes(NativeList<byte> buff, NativeArray<char> str)
         {
-            this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
+            return this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
         }
         /// <summary>
         /// convert Base64 format chars into bytes.
         /// </summary>
         /// <param name="buff">output</param>
         /// <param name="str">source</param>
-        public unsafe void GetBytes(NativeList<byte> buff, NativeList<char> str)
+        /// <returns>convert successfull or not</returns>
+        public unsafe bool GetBytes(NativeList<byte> buff, NativeList<char> str)
         {
-            this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
+            return this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
         }
         /// <summary>
         /// convert Base64 format chars into bytes.
         /// </summary>
         /// <param name="buff">output</param>
         /// <param name="str">source</param>
-        public unsafe void GetBytes(NativeList<byte> buff, IJaggedArraySliceBase<char> str)
+        /// <returns>convert successfull or not</returns>
+        public unsafe bool GetBytes(NativeList<byte> buff, IJaggedArraySliceBase<char> str)
         {
-            this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
+            return this.GetBytes(buff, (char*)str.GetUnsafePtr(), str.Length);
         }
         /// <summary>
         /// convert Base64 format chars into bytes.
@@ -749,9 +752,17 @@ namespace NativeStringCollections
         /// <param name="buff">output</param>
         /// <param name="char_ptr">source ptr</param>
         /// <param name="char_len">source length</param>
-        public unsafe void GetBytes(NativeList<byte> buff, char* char_ptr, int char_len)
+        /// <returns>convert successfull or not</returns>
+        public unsafe bool GetBytes(NativeList<byte> buff, char* char_ptr, int char_len)
         {
-            if (char_len < 0) throw new ArgumentOutOfRangeException("invalid chars length.");
+            if (char_len < 0)
+            {
+#if UNITY_EDITOR
+                throw new ArgumentOutOfRangeException("invalid chars length.");
+#else
+                return false;
+#endif
+            }
 
             uint store = _info.Target->store;
             int bytePos = _info.Target->bytePos;
@@ -767,7 +778,7 @@ namespace NativeStringCollections
                     {
                         case 0:
                         case 1:
-                            
+
                             /*
                             var sb = new StringBuilder();
                             sb.Append("bytePos = " + bytePos.ToString() + '\n');
@@ -795,8 +806,11 @@ namespace NativeStringCollections
                             UnityEngine.Debug.Log(sb);
                             */
 
+#if UNITY_EDITOR
                             throw new ArgumentException("invalid padding detected.");
-                            //break;
+#else
+                            return false;
+#endif
                         case 2:
                             // pick 1 byte from "**==" code
                             buff.Add((byte)((store & 0x0ff0) >> 4));
@@ -809,7 +823,7 @@ namespace NativeStringCollections
                             bytePos = 0;
                             break;
                     }
-                    return;
+                    return true;
                 }
                 else
                 {
@@ -832,6 +846,8 @@ namespace NativeStringCollections
             }
             _info.Target->store = store;
             _info.Target->bytePos = bytePos;
+
+            return true;
         }
         private bool IsWhiteSpace(char c)
         {

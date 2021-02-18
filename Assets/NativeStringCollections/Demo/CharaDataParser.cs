@@ -22,7 +22,7 @@ namespace NativeStringCollections.Demo
 
         public int Lines;
 
-        private double _dummy;
+        private int _data_size;
 
         private NativeStringList _name;
 
@@ -99,6 +99,8 @@ namespace NativeStringCollections.Demo
             _b64_decoder = new NativeBase64Decoder(Allocator.Persistent);
             _b64_decoded_bytes = new NativeList<byte>(Allocator.Persistent);
 
+            _data_size = 0;
+
             _timer = new System.Diagnostics.Stopwatch();
             _timer.Start();
 
@@ -121,6 +123,20 @@ namespace NativeStringCollections.Demo
 
             _b64_decoder.Clear();
             _b64_decoded_bytes.Clear();
+
+            // pre-reallocating for after 2nd loadings
+            if(_data_size > 0)
+            {
+                Data.Capacity = _data_size;
+                IndexSeq.Capacity = _data_size;
+
+                _name.Capacity = 8 * _data_size;              // estimate 8 charactors for name of 1 CharaData
+                _tmp_name.Capacity = 8 * _data_size;
+                _name.IndexCapacity = _data_size;
+                _tmp_name.Capacity = _data_size;
+
+                _b64_decoded_bytes.Capacity = 4 * _data_size; // convrt to Int32 array
+            }
 
             _read_mode = ReadMode.None;
         }
@@ -161,21 +177,9 @@ namespace NativeStringCollections.Demo
             if(_read_mode == ReadMode.Header)
             {
                 bool success = true;
-                if (_str_list[0] == _mark_n_total)
-                {
-                    success = _str_list[1].TryParse(out int n);
-                    this.N = n;
-                }
-                else if (_str_list[0] == _mark_d)
-                {
-                    success = _str_list[1].TryParse(out int d);
-                    this.D = d;
-                }
-                else if (_str_list[0] == _mark_r)
-                {
-                    success = _str_list[1].TryParse(out float r);
-                    this.R = r;
-                }
+                if (_str_list[0] == _mark_n_total) { success = _str_list[1].TryParse(out this.N); }
+                else if (_str_list[0] == _mark_d) { success = _str_list[1].TryParse(out this.D); }
+                else if (_str_list[0] == _mark_r) { success = _str_list[1].TryParse(out this.R); }
                 if (!success)
                 {
                     _read_mode = ReadMode.HeaderError;
@@ -192,7 +196,12 @@ namespace NativeStringCollections.Demo
                 }
                 else if(_str_list.Length == 1)
                 {
-                    _b64_decoder.GetBytes(_b64_decoded_bytes, _str_list[0]);
+                    bool success = _b64_decoder.GetBytes(_b64_decoded_bytes, _str_list[0]);
+                    if (!success)
+                    {
+                        _read_mode = ReadMode.Base64DataError;
+                        return false;
+                    }
                 }
             }
             else if(_read_mode == ReadMode.Body)
@@ -291,7 +300,18 @@ namespace NativeStringCollections.Demo
         }
         public void UnLoad()
         {
+            _data_size = Data.Length;
             this.Clear();
+
+            //--- shrink data buffers
+            Data.Capacity = 8;
+            IndexSeq.Capacity = 8;
+
+            _name.Capacity = 8;
+            _name.IndexCapacity = 4;
+            _tmp_name.Capacity = 8;
+            _tmp_name.IndexCapacity = 4;
+            _b64_decoded_bytes.Capacity = 8;
         }
         public void Dispose()
         {
@@ -308,13 +328,15 @@ namespace NativeStringCollections.Demo
 
                 _b64_decoder.Dispose();
                 _b64_decoded_bytes.Dispose();
+
+                _allocated = false;
             }
-            GC.SuppressFinalize(this);
         }
 
         ~CharaDataParser()
         {
             this.Dispose();
+            GC.SuppressFinalize(this);
         }
     }
 }

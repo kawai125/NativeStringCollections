@@ -88,8 +88,126 @@ namespace NativeStringCollections
         }
     }
 
-    public class AsyncTextFileLoader<T>
-        where T : class, ITextFileParser, IDisposable, new()
+    public class AsyncTextFileReader<T> : IDisposable
+        where T : class, ITextFileParser, new()
+    {
+        public T Data;
+        public string Path;
+        public int BlockSize
+        {
+            get { return BlockSize; }
+            set { if (value >= Define.MinDecodeBlock) BlockSize = value; }
+        }
+        public Encoding Encoding;
+
+        private ParseJob<T> _parser;
+        private PtrHandle<ReadStateImpl> _state;
+        private JobHandle _job_handle;
+
+        private bool _allocated;
+
+        private AsyncTextFileReader() { }
+        public AsyncTextFileReader(Allocator alloc)
+        {
+            this.Init("", alloc, System.Text.Encoding.UTF8);
+        }
+        public AsyncTextFileReader(Allocator alloc, Encoding encoding)
+        {
+            this.Init("", alloc, encoding);
+        }
+        public AsyncTextFileReader(string path, Allocator alloc)
+        {
+            this.Init(path, alloc, System.Text.Encoding.UTF8);
+        }
+        public AsyncTextFileReader(string path, Allocator alloc, Encoding encoding)
+        {
+            this.Init(path, alloc, encoding);
+        }
+        private void Init(string path, Allocator alloc, Encoding encoding)
+        {
+            Data = new T();
+            Path = path;
+            BlockSize = Define.DefaultDecodeBlock;
+            Encoding = encoding;
+
+            _parser = new ParseJob<T>(alloc);
+            _state = new PtrHandle<ReadStateImpl>(alloc);
+
+            _allocated = true;
+        }
+        ~AsyncTextFileReader()
+        {
+            this.Dispose();
+
+            GC.SuppressFinalize(Path);
+            GC.SuppressFinalize(Encoding);
+            GC.SuppressFinalize(this);
+        }
+        public void Dispose()
+        {
+            if (_allocated)
+            {
+                _parser.Dispose();
+                _state.Dispose();
+
+                _allocated = true;
+            }
+        }
+
+        public unsafe ReadState GetState() { return _state.Target->GetState(); }
+
+        public JobHandle LoadFile() { return this.LoadFile(Path); }
+        public unsafe JobHandle LoadFile(string path)
+        {
+            if (path.Length == 0)
+                throw new ArgumentException("path string is empty.");
+
+            if(_state.Target->RefCount == 0)
+            {
+                _parser.BlockSize = BlockSize;
+                _job_handle = _parser.ReadFileAsync(path, Encoding, Data, _state);
+
+                _state.Target->RefCount = 1;
+            }
+
+            return _job_handle;
+        }
+        public unsafe void Complete()
+        {
+            if(_state.Target->State == ReadJobState.WaitForCallingComplete)
+            {
+                _job_handle.Complete();
+                _state.Target->State = ReadJobState.Completed;
+            }
+        }
+        public unsafe void UnLoadFile()
+        {
+            if(_state.Target->RefCount == 1)
+            {
+                Data.UnLoad();
+                _state.Target->RefCount = 0;
+            }
+        }
+        public void LoadFileInMainThread() { this.LoadFileInMainThread(Path); }
+        public unsafe void LoadFileInMainThread(string path)
+        {
+            if (path.Length == 0)
+                throw new ArgumentException("path string is empty.");
+
+            if (_state.Target->RefCount == 0)
+            {
+                _parser.BlockSize = BlockSize;
+                _parser.ReadFileInMainThread(path, Encoding, Data, _state);
+                _state.Target->State = ReadJobState.Completed;
+
+                _state.Target->RefCount = 1;
+            }
+        }
+    }
+
+    public class AsyncTextFileLoader<T> :
+        IDisposable
+        where T : class, ITextFileParser, new()
     {
         private List<string> _fileList;
         private Encoding _encoding;
@@ -200,10 +318,6 @@ namespace NativeStringCollections
         {
             _fileList.Clear();
 
-            for(int i=0; i<_data.Count; i++)
-            {
-                _data[i].Dispose();
-            }
             _data.Clear();
             for(int i=0; i<_state.Length; i++)
             {
@@ -213,10 +327,16 @@ namespace NativeStringCollections
         }
         ~AsyncTextFileLoader() { this.Dispose(); }
 
+        public int Length { get { return _fileList.Count; } }
         public Encoding Encoding
         {
             get { return _encoding; }
             set { _encoding = value; }
+        }
+        public int BlockSize
+        {
+            get { return _blockSize; }
+            set { if (value >= Define.MinDecodeBlock) _blockSize = value; }
         }
         public int MaxJobCount
         {
@@ -258,6 +378,7 @@ namespace NativeStringCollections
         {
             return _fileList[index];
         }
+        public List<T> DataList { get { return _data; } }
         public unsafe T this[int fileIndex]
         {
             get
@@ -585,7 +706,7 @@ namespace NativeStringCollections
             public JobHandle jobHandle;
         }
         internal unsafe struct ParseJob<Tdata> : IJob, IDisposable
-            where Tdata : ITextFileParser, IDisposable
+            where Tdata : ITextFileParser
         {
             private AsyncByteReader _byteReader;
             private TextDecoder _decoder;
@@ -667,7 +788,7 @@ namespace NativeStringCollections
             }
             public JobHandle ReadFileAsync(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
             {
-                this.InitializeReadJob(path, encoding, data, state_ptr);
+                this.InitializeReadJob(encoding, data, state_ptr);
 
                 var job_byteReader = _byteReader.ReadFileAsync(path);
                 _info.Target->jobHandle = this.Schedule(job_byteReader);
@@ -676,13 +797,13 @@ namespace NativeStringCollections
             }
             public void ReadFileInMainThread(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
             {
-                this.InitializeReadJob(path, encoding, data, state_ptr);
+                this.InitializeReadJob(encoding, data, state_ptr);
 
                 var job_byteReader = _byteReader.ReadFileAsync(path);
                 job_byteReader.Complete();
                 this.Run();
             }
-            private void InitializeReadJob(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
+            private void InitializeReadJob(Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
             {
                 this.DisposeHandle();
 

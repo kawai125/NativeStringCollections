@@ -1,7 +1,7 @@
 ﻿
 namespace NativeStringCollections
 {
-    readonly struct Define
+    public readonly struct Define
     {
         // for NativeTextStreamReader
         public const int DefaultBufferSize = 4096;
@@ -9,16 +9,15 @@ namespace NativeStringCollections
 
         // for AsyncByteBuffer
         public const int MinByteBufferSize = 4096;
-        //public const int MinByteBufferSize = 524288;  // 512kB
 
         // for AsyncTextFileLoader
-        //public const int DefaultDecodeBlock = 64;
+        public const int MinDecodeBlock = 64;
         public const int DefaultDecodeBlock = 2048;
         public const int DefaultNumParser = 2;
         public const int NumParserLimit = 1048576;
     }
 
-    readonly struct Base64Const
+    public readonly struct Base64Const
     {
         public const int LineBreakPos = 76;
     }

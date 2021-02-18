@@ -63,6 +63,9 @@ public class Demo_ReadingLargeFile : MonoBehaviour
     public TMP_Dropdown _dropdownDataSize;
     private List<int> _dataSizeList;
 
+    public TMP_Dropdown _dropdownDecodeSize;
+    private List<int> _decodeSizeList;
+
     public Button _generateButton;
     public Slider _generateProgressSlider;
     private float _generateProgress;
@@ -76,6 +79,7 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
     public Button _unLoadButton;
 
+    public TextMeshProUGUI _generateTimeText;
     public TextMeshProUGUI _loadTimeText;
 
     private bool _generatorPrevState;
@@ -127,6 +131,7 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
         _dataSizeList.Add(1024);
         _dataSizeList.Add(4096);
+        _dataSizeList.Add(32768);
         _dataSizeList.Add(125000);
         _dataSizeList.Add(250000);
         _dataSizeList.Add(500000);
@@ -142,6 +147,38 @@ public class Demo_ReadingLargeFile : MonoBehaviour
             }
             _dropdownDataSize.AddOptions(drop_menu);
             _dropdownDataSize.value = 0;
+        }
+
+        _decodeSizeList = new List<int>();
+        _decodeSizeList.Add(64);
+        _decodeSizeList.Add(256);
+        _decodeSizeList.Add(1024);
+        _decodeSizeList.Add(2048);
+        _decodeSizeList.Add(4096);
+        _decodeSizeList.Add(16384);
+        _decodeSizeList.Add(65536);
+        _decodeSizeList.Add(262144);
+
+        if (_dropdownDecodeSize)
+        {
+            _dropdownDecodeSize.ClearOptions();
+
+            var drop_menu = new List<string>();
+            int index_default = 0;
+            foreach(var s in _decodeSizeList)
+            {
+                if(s == NativeStringCollections.Define.DefaultDecodeBlock)
+                {
+                    index_default = drop_menu.Count;
+                    drop_menu.Add(s.ToString() + " (default)");
+                }
+                else
+                {
+                    drop_menu.Add(s.ToString());
+                }
+            }
+            _dropdownDecodeSize.AddOptions(drop_menu);
+            _dropdownDecodeSize.value = index_default;
         }
 
         _generateInCurrentProc = false;
@@ -160,6 +197,7 @@ public class Demo_ReadingLargeFile : MonoBehaviour
     }
     private void OnDestroy()
     {
+        foreach (var data in _loader.DataList) data.Dispose();
         _loader.Dispose();
     }
 
@@ -245,6 +283,11 @@ public class Demo_ReadingLargeFile : MonoBehaviour
             _loadProgressText.text = sb.ToString();
         }
 
+        // generate time
+        if (_generator.IsCompleted)
+        {
+            _generateTimeText.text = $"generate file in {_generator.ElapsedMilliseconds} ms";
+        }
 
         // load time
         if(loadInfo.State != _loaderPrevState.State)
@@ -311,6 +354,8 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
     public void OnClickLoadFileAsync()
     {
+        _loader.BlockSize = _decodeSizeList[_dropdownDecodeSize.value];
+
         if (_toggleLoadFileInMainThread.isOn)
         {
             _loader.LoadFileInMainThread(0);

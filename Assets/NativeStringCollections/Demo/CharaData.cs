@@ -1,7 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using System.Security.Cryptography;
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,7 +15,8 @@ namespace NativeStringCollections.Demo
     {
         public long ID;
         public StringEntity Name;
-        public int HP, MP, Attack, Defence;
+        public int HP, MP;
+        public float Attack, Defence;
 
         public bool Equals(CharaData rhs)
         {
@@ -86,15 +84,16 @@ namespace NativeStringCollections.Demo
         {
             var tmp = new CharaData();
 
-            var name_tmp = "Chara" + id.GetHashCode().ToString();
+            float vv = id;
+            var name_tmp = "Chara" + (vv * vv).GetHashCode().ToString();
             NSL.Add(name_tmp);
 
             tmp.ID = id;
             tmp.Name = NSL.Last;
             tmp.HP = (int)id * 100;
             tmp.MP = (int)id * 50;
-            tmp.Attack = (int)id * 4;
-            tmp.Defence = (int)id * 3;
+            tmp.Attack = vv * 4;
+            tmp.Defence = vv * 3;
 
             return tmp;
         }
@@ -111,6 +110,8 @@ namespace NativeStringCollections.Demo
         private int _n_chara;
         private int _i_chara;
 
+        private System.Diagnostics.Stopwatch _timer = new System.Diagnostics.Stopwatch();
+
         public int N { get { return _n_chara; } }
         public int Inc { get { return _i_chara; } }
         public bool IsCompleted { get { return !_run || (_run && _task.IsCompleted); } }
@@ -119,6 +120,11 @@ namespace NativeStringCollections.Demo
         {
             _path = path;
         }
+        public long ElapsedMilliseconds
+        {
+            get { return _timer.ElapsedMilliseconds; }
+        }
+
         /// <summary>
         /// sample file generator
         /// </summary>
@@ -136,9 +142,13 @@ namespace NativeStringCollections.Demo
 
             _task = Task.Run(() =>
             {
+                _timer.Restart();
+
                 _run = true;
                 _n_chara = n;
                 this.GenerateImpl(encoding, n, d, r);
+
+                _timer.Stop();
             });
         }
         private unsafe void GenerateImpl(Encoding encoding, int n, int d, float r)
@@ -261,7 +271,7 @@ namespace NativeStringCollections.Demo
                         sb.Append(_lf);
                     }
 
-                    if(sb.Length > 1024)
+                    if(sb.Length > 4096)  // 4k: page size
                     {
                         writer.Write(sb);
                         sb.Clear();
