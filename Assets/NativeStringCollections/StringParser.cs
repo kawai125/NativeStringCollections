@@ -24,10 +24,10 @@ namespace NativeStringCollections
         Little,
     }
 
-    public interface IParseExt
+    public unsafe interface IParseExt
     {
         int Length { get; }
-        char this[int i] { get; }
+        void* GetUnsafePtr();
     }
 
     public static class StringParserExt
@@ -35,47 +35,66 @@ namespace NativeStringCollections
         /// <summary>
         /// Try to parse StringEntity to bool. Cannot accept whitespaces (this is differ from official C# bool.TryParse()).
         /// </summary>
-        public static bool TryParse(this IParseExt value, out bool result)
+        public unsafe static bool TryParse(this IParseExt source, out bool result)
         {
-            if (value.Length == 5)
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
+            if (len_source == 5)
             {
                 // match "False", "false", or "FALSE"
-                if(value[0] == 'F')
+                if(ptr_source[0] == 'F')
                 {
-                    if (value[1] == 'a' && value[2] == 'l' && value[3] == 's' && value[4] == 'e')
+                    if (ptr_source[1] == 'a' &&
+                        ptr_source[2] == 'l' &&
+                        ptr_source[3] == 's' &&
+                        ptr_source[4] == 'e')
                     {
                         result = false;
                         return true;
                     }
-                    else if (value[1] == 'A' && value[2] == 'L' && value[3] == 'S' && value[4] == 'E')
+                    else if (ptr_source[1] == 'A' &&
+                        ptr_source[2] == 'L' &&
+                        ptr_source[3] == 'S' &&
+                        ptr_source[4] == 'E')
                     {
                         result = false;
                         return true;
                     }
                 }
-                else if (value[0] == 'f' && value[1] == 'a' && value[2] == 'l' && value[3] == 's' && value[4] == 'e')
+                else if (ptr_source[0] == 'f' &&
+                    ptr_source[1] == 'a' &&
+                    ptr_source[2] == 'l' &&
+                    ptr_source[3] == 's' &&
+                    ptr_source[4] == 'e')
                 {
                     result = false;
                     return true;
                 }
             }
-            else if (value.Length == 4)
+            else if (len_source == 4)
             {
                 // match "True", "true", or "TRUE"
-                if(value[0] == 'T')
+                if(ptr_source[0] == 'T')
                 {
-                    if (value[1] == 'r' && value[2] == 'u' && value[3] == 'e')
+                    if (ptr_source[1] == 'r' &&
+                        ptr_source[2] == 'u' &&
+                        ptr_source[3] == 'e')
                     {
                         result = true;
                         return true;
                     }
-                    else if (value[1] == 'R' && value[2] == 'U' && value[3] == 'E')
+                    else if (ptr_source[1] == 'R' &&
+                        ptr_source[2] == 'U' &&
+                        ptr_source[3] == 'E')
                     {
                         result = true;
                         return true;
                     }
                 }
-                else if (value[0] == 't' && value[1] == 'r' && value[2] == 'u' && value[3] == 'e')
+                else if (ptr_source[0] == 't' &&
+                    ptr_source[1] == 'r' &&
+                    ptr_source[2] == 'u' &&
+                    ptr_source[3] == 'e')
                 {
                     result = true;
                     return true;
@@ -87,23 +106,26 @@ namespace NativeStringCollections
         /// <summary>
         /// Try to parse StringEntity to Int32. Cannot accept whitespaces & hex format (this is differ from official C# int.TryParse()). Use TryParseHex(out T) for hex data.
         /// </summary>
-        public static bool TryParse(this IParseExt value, out int result)
+        public unsafe static bool TryParse(this IParseExt source, out int result)
         {
             const int max_len = 10;
 
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
+
             result = 0;
-            if (value.Length <= 0) return false;
+            if (len_source <= 0) return false;
 
             int i_start = 0;
-            if (value[0].IsSign(out int sign)) i_start = 1;
+            if (ptr_source[0].IsSign(out int sign)) i_start = 1;
 
             int digit_count = 0;
             int MSD = 0;
 
             int tmp = 0;
-            for (int i = i_start; i < value.Length; i++)
+            for (int i = i_start; i <len_source; i++)
             {
-                if (value[i].IsDigit(out int d))
+                if (ptr_source[i].IsDigit(out int d))
                 {
                     if (digit_count > 0) digit_count++;
 
@@ -135,23 +157,26 @@ namespace NativeStringCollections
         /// <summary>
         /// Try to parse StringEntity to Int64. Cannot accept whitespaces & hex format (this is differ from official C# long.TryParse()). Use TryParseHex(out T) for hex data.
         /// </summary>
-        public static bool TryParse(this IParseExt value, out long result)
+        public unsafe static bool TryParse(this IParseExt source, out long result)
         {
             const int max_len = 19;
 
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
+
             result = 0;
-            if (value.Length <= 0) return false;
+            if (len_source <= 0) return false;
 
             int i_start = 0;
-            if (value[0].IsSign(out int sign)) i_start = 1;
+            if (ptr_source[0].IsSign(out int sign)) i_start = 1;
 
             int digit_count = 0;
             int MSD = 0;
 
             long tmp = 0;
-            for (int i = i_start; i < value.Length; i++)
+            for (int i = i_start; i < len_source; i++)
             {
-                if (value[i].IsDigit(out int d))
+                if (ptr_source[i].IsDigit(out int d))
                 {
                     if (digit_count > 0) digit_count++;
 
@@ -183,12 +208,12 @@ namespace NativeStringCollections
         /// Try to parse StringEntity to float. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# float.TryParse()).
         /// Use TryParseHex(out T) for hex data.
         /// </summary>
-        public static bool TryParse(this IParseExt value, out float result)
+        public static bool TryParse(this IParseExt source, out float result)
         {
             result = 0.0f;
-            if (value.Length <= 0) return false;
+            if (source.Length <= 0) return false;
 
-            if (!value.TryParse(out double tmp)) return false;
+            if (!source.TryParse(out double tmp)) return false;
 
             float f_cast = (float)tmp;
             if (float.IsInfinity(f_cast)) return false;
@@ -200,19 +225,21 @@ namespace NativeStringCollections
         /// Try to parse StringEntity to double. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# double.TryParse()).
         /// Use TryParseHex(out T) for hex data.
         /// </summary>
-        public static bool TryParse(this IParseExt value, out double result)
+        public unsafe static bool TryParse(this IParseExt source, out double result)
         {
             result = 0.0;
-            if (value.Length <= 0) return false;
-            if (!value.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
+            if (source.Length <= 0) return false;
+            if (!source.TryParseFloatFormat(out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)) return false;
 
             //UnityEngine.Debug.Log("i_start=" + i_start.ToString() + ", dot_pos=" + dot_pos.ToString() + ", exp_pos=" + exp_pos.ToString() + ", n_pow=" + n_pow.ToString());
+
+            char* ptr_source = (char*)source.GetUnsafePtr();
 
             double mantissa = 0.0;
             for (int i = exp_pos - 1; i >= i_start; i--)
             {
                 if (i == dot_pos) continue;
-                mantissa = mantissa * 0.1 + (double)value[i].ToInt();
+                mantissa = mantissa * 0.1 + (double)ptr_source[i].ToInt();
             }
 
             int m_pow = 0;
@@ -226,15 +253,23 @@ namespace NativeStringCollections
             return true;
         }
 
-        private static bool TryParseFloatFormat(this IParseExt value, out int sign, out int i_start, out int dot_pos, out int exp_pos, out int n_pow)
+        private unsafe static bool TryParseFloatFormat(this IParseExt source,
+                                                       out int sign,
+                                                       out int i_start,
+                                                       out int dot_pos,
+                                                       out int exp_pos,
+                                                       out int n_pow)
         {
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
+
             i_start = 0;
-            if (value[0].IsSign(out sign)) i_start = 1;
+            if (ptr_source[0].IsSign(out sign)) i_start = 1;
 
             // eat zeros on the head
-            for(int i=i_start; i<value.Length; i++)
+            for(int i=i_start; i<len_source; i++)
             {
-                char c = value[i];
+                char c = ptr_source[i];
                 if(c == '0')
                 {
                     i_start++;
@@ -258,9 +293,9 @@ namespace NativeStringCollections
             int dummy;
 
             // format check
-            for (int i = i_start; i < value.Length; i++)
+            for (int i = i_start; i < len_source; i++)
             {
-                char c = value[i];
+                char c = ptr_source[i];
                 //UnityEngine.Debug.Log("parse format: i=" + i.ToString() + ", c=" + c.ToString());
                 if (c.IsDigit(out dummy))
                 {
@@ -283,11 +318,11 @@ namespace NativeStringCollections
 
                     //if (exp_pos != -1) return false;
                     //if (i <= i_start + 1) return false;
-                    //if (value.Length - i < 2) return false;  // [+/-] & 1 digit or lager EXP num.
+                    //if (source.Length - i < 2) return false;  // [+/-] & 1 digit or lager EXP num.
                     if (exp_pos != -1 ||
                         i == i_start + 1 ||
-                        (value.Length - i) < 2 ||
-                        !value[i + 1].IsSign(out exp_sign)) return false;
+                        (len_source - i) < 2 ||
+                        !ptr_source[i + 1].IsSign(out exp_sign)) return false;
 
                     exp_pos = i;
                 }
@@ -306,10 +341,10 @@ namespace NativeStringCollections
             // decode exp part
             if(exp_pos > 0)
             {
-                if (value.Length - (exp_pos + 2) > 8) return false;  // capacity of int
-                for (int i = exp_pos + 2; i < value.Length; i++)
+                if (len_source - (exp_pos + 2) > 8) return false;  // capacity of int
+                for (int i = exp_pos + 2; i < len_source; i++)
                 {
-                    n_pow = n_pow * 10 + value[i].ToInt();
+                    n_pow = n_pow * 10 + ptr_source[i].ToInt();
                     //UnityEngine.Debug.Log("n_pow(1)=" + n_pow.ToString());
                 }
                 n_pow *= exp_sign;
@@ -317,7 +352,7 @@ namespace NativeStringCollections
             else
             {
                 // no [e/E+-[int]] part
-                exp_pos = value.Length;
+                exp_pos = len_source;
             }
 
             if (dot_pos < 0) dot_pos = exp_pos;
@@ -327,9 +362,9 @@ namespace NativeStringCollections
             return true;
         }
 
-        unsafe public static bool TryParseHex(this IParseExt value, out int result, Endian endian = Endian.Big)
+        unsafe public static bool TryParseHex(this IParseExt source, out int result, Endian endian = Endian.Little)
         {
-            if (value.TryParseHex32(out uint buf, endian))
+            if (source.TryParseHex32(out uint buf, endian))
             {
                 result = *(int*)&buf;
                 return true;
@@ -340,9 +375,9 @@ namespace NativeStringCollections
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this IParseExt value, out long result, Endian endian = Endian.Big)
+        unsafe public static bool TryParseHex(this IParseExt source, out long result, Endian endian = Endian.Little)
         {
-            if (value.TryParseHex64(out ulong buf, endian))
+            if (source.TryParseHex64(out ulong buf, endian))
             {
                 result = *(long*)&buf;
                 return true;
@@ -353,9 +388,9 @@ namespace NativeStringCollections
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this IParseExt value, out float result, Endian endian = Endian.Big)
+        unsafe public static bool TryParseHex(this IParseExt source, out float result, Endian endian = Endian.Little)
         {
-            if (value.TryParseHex32(out uint buf, endian))
+            if (source.TryParseHex32(out uint buf, endian))
             {
                 result = *(float*)&buf;
                 return true;
@@ -366,9 +401,9 @@ namespace NativeStringCollections
                 return false;
             }
         }
-        unsafe public static bool TryParseHex(this IParseExt value, out double result, Endian endian = Endian.Big)
+        unsafe public static bool TryParseHex(this IParseExt source, out double result, Endian endian = Endian.Little)
         {
-            if (value.TryParseHex64(out ulong buf, endian))
+            if (source.TryParseHex64(out ulong buf, endian))
             {
                 result = *(double*)&buf;
                 return true;
@@ -380,25 +415,25 @@ namespace NativeStringCollections
             }
         }
 
-        private static bool TryParseHex32(this IParseExt value, out uint buf, Endian endian)
+        private unsafe static bool TryParseHex32(this IParseExt source, out uint buf, Endian endian)
         {
             const int n_digits = 8;  // accepts 8 digits set (4bit * 8)
+
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
 
             int i_start = 0;
             buf = 0;
 
-            if (value[1] == 'x' && value[0] == '0') i_start = 2;
+            if (!(len_source == n_digits || len_source == n_digits + 2)) return false;
 
-            if (value.Length - i_start != n_digits)
-            {
-                return false;
-            }
+            if (ptr_source[0] == '0' && ptr_source[1] == 'x') i_start = 2;
 
             if(endian == Endian.Big)
             {
-                for (int i = i_start; i < value.Length; i++)
+                for (int i = i_start; i < len_source; i++)
                 {
-                    if (value[i].IsHex(out uint h))
+                    if (ptr_source[i].IsHex(out uint h))
                     {
                         buf = (buf << 4) | h;
                     }
@@ -410,12 +445,12 @@ namespace NativeStringCollections
             }
             else if(endian == Endian.Little)
             {
-                int n_byte = value.Length / 2;
+                int n_byte = len_source / 2;
                 int i_last = i_start / 2;
                 for(int i = n_byte - 1; i>=i_last; i--)
                 {
-                    char c0 = value[2 * i];
-                    char c1 = value[2 * i + 1];
+                    char c0 = ptr_source[2 * i];
+                    char c1 = ptr_source[2 * i + 1];
 
                     if(c0.IsHex(out uint h0) && c1.IsHex(out uint h1))
                     {
@@ -431,25 +466,25 @@ namespace NativeStringCollections
 
             return true;
         }
-        private static bool TryParseHex64(this IParseExt value, out ulong buf, Endian endian)
+        private unsafe static bool TryParseHex64(this IParseExt source, out ulong buf, Endian endian)
         {
             const int n_digits = 16;  // accepts 16 digits set (4bit * 16)
+
+            int len_source = source.Length;
+            char* ptr_source = (char*)source.GetUnsafePtr();
 
             int i_start = 0;
             buf = 0;
 
-            if (value[1] == 'x' && value[0] == '0') i_start = 2;
+            if (!(len_source == n_digits || len_source == n_digits + 2)) return false;
 
-            if (value.Length - i_start != n_digits)
-            {
-                return false;
-            }
+            if (ptr_source[0] == '0' && ptr_source[1] == 'x') i_start = 2;
 
             if (endian == Endian.Big)
             {
-                for (int i = i_start; i < value.Length; i++)
+                for (int i = i_start; i < len_source; i++)
                 {
-                    if (value[i].IsHex(out uint h))
+                    if (ptr_source[i].IsHex(out uint h))
                     {
                         buf = (buf << 4) | h;
                     }
@@ -461,12 +496,12 @@ namespace NativeStringCollections
             }
             else if (endian == Endian.Little)
             {
-                int n_byte = value.Length / 2;
+                int n_byte = len_source / 2;
                 int i_last = i_start / 2;
                 for (int i = n_byte - 1; i >= i_last; i--)
                 {
-                    char c0 = value[2 * i];
-                    char c1 = value[2 * i + 1];
+                    char c0 = ptr_source[2 * i];
+                    char c1 = ptr_source[2 * i + 1];
 
                     if (c0.IsHex(out uint h0) && c1.IsHex(out uint h1))
                     {

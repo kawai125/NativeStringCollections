@@ -397,8 +397,8 @@ namespace Tests
                 ReadOnlyStringEntity str_lit = str_native_lit[i];
                 ReadOnlyStringEntity str_big = str_native_big[i];
 
-                bool success_lit = str_lit.TryParseHex(out int value_lit, Endian.Little);
-                bool success_big = str_big.TryParseHex(out int value_big);
+                bool success_lit = str_lit.TryParseHex(out int value_lit);
+                bool success_big = str_big.TryParseHex(out int value_big, Endian.Big);
 
                 Debug.Log("parse str[big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
                         + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
@@ -443,8 +443,8 @@ namespace Tests
                 ReadOnlyStringEntity str_lit = str_native_lit[i];
                 ReadOnlyStringEntity str_big = str_native_big[i];
 
-                bool success_lit = str_lit.TryParseHex(out long value_lit, Endian.Little);
-                bool success_big = str_big.TryParseHex(out long value_big);
+                bool success_lit = str_lit.TryParseHex(out long value_lit);
+                bool success_big = str_big.TryParseHex(out long value_big, Endian.Big);
 
                 Debug.Log("parse str[big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
                         + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
@@ -489,8 +489,8 @@ namespace Tests
                 ReadOnlyStringEntity str_lit = str_native_lit[i];
                 ReadOnlyStringEntity str_big = str_native_big[i];
 
-                bool success_lit = str_lit.TryParseHex(out float value_lit, Endian.Little);
-                bool success_big = str_big.TryParseHex(out float value_big);
+                bool success_lit = str_lit.TryParseHex(out float value_lit);
+                bool success_big = str_big.TryParseHex(out float value_big, Endian.Big);
 
                 Debug.Log("parse str[big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
                         + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
@@ -542,8 +542,8 @@ namespace Tests
                 ReadOnlyStringEntity str_lit = str_native_lit[i];
                 ReadOnlyStringEntity str_big = str_native_big[i];
 
-                bool success_lit = str_lit.TryParseHex(out double value_lit, Endian.Little);
-                bool success_big = str_big.TryParseHex(out double value_big);
+                bool success_lit = str_lit.TryParseHex(out double value_lit);
+                bool success_big = str_big.TryParseHex(out double value_big, Endian.Big);
 
                 Debug.Log("parse str[big/little] = [" + str_big.ToString() + "/" + str_lit.ToString()
                         + "], try[big/little] = [" + success_big.ToString() + "/" + success_lit.ToString()
