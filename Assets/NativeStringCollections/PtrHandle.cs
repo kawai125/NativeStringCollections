@@ -1,13 +1,7 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
-
-using System.Collections;
-using System.Collections.Generic;
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-
-using UnityEngine;
 
 
 namespace NativeStringCollections.Utility

@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Runtime.InteropServices;
 
-using Unity.Jobs;
 using Unity.Collections;
 using Unity.IO.LowLevel.Unsafe;
 using Unity.Collections.LowLevel.Unsafe;

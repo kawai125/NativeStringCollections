@@ -1,11 +1,4 @@
-﻿// enable the below macro to enable reallocation trace for debug.
-//#define NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
-
-using System;
-using System.Text;
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
+﻿using System;
 
 using Unity.Mathematics;
 using Unity.Collections;

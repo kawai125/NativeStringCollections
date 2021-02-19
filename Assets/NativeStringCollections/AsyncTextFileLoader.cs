@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+
+using System;
 using System.Text;
 using System.Collections.Generic;
 
@@ -44,7 +46,7 @@ namespace NativeStringCollections
     }
 
     
-    public struct ReadState
+    public readonly struct ReadState
     {
         public ReadJobState State { get; }
         public int Length { get; }
@@ -53,15 +55,15 @@ namespace NativeStringCollections
         /// <summary>
         /// elapsed milliseconds for AsyncReadManager.Read()
         /// </summary>
-        public double DelayReadAsync { get; }
+        public float DelayReadAsync { get; }
         /// <summary>
         /// elapsed milliseconds for ITextFileParser.ParseLine()
         /// </summary>
-        public double DelayParseText { get; }
+        public float DelayParseText { get; }
         /// <summary>
         /// elapsed milliseconds for ITextFileParser.PostReadProc()
         /// </summary>
-        public double DelayPostProc { get; }
+        public float DelayPostProc { get; }
 
         /// <summary>
         /// elapsed milliseconds to parse the file.
@@ -74,9 +76,9 @@ namespace NativeStringCollections
         }
 
         public ReadState(ReadJobState state, int len, int read, int ref_count,
-            double delay_read_async,
-            double delay_parse_text,
-            double delay_post_proc)
+            float delay_read_async,
+            float delay_parse_text,
+            float delay_post_proc)
         {
             State = state;
             Length = len;
@@ -209,7 +211,7 @@ namespace NativeStringCollections
         IDisposable
         where T : class, ITextFileParser, new()
     {
-        private List<string> _fileList;
+        private List<string> _pathList;
         private Encoding _encoding;
 
         private Allocator _alloc;
@@ -237,7 +239,7 @@ namespace NativeStringCollections
         private enum FileAction
         {
             Store = 1,
-            Dispose = -1,
+            UnLoad = -1,
         }
         private struct QueueRequest
         {
@@ -257,12 +259,14 @@ namespace NativeStringCollections
         private NativeList<QueueRequest> _updateQueueTmp;
         private NativeList<int> _updateLoadTgtTmp;
 
+        private UnLoadJob<T> _unLoadJob;
+
 
         private AsyncTextFileLoader() { }
         public AsyncTextFileLoader(Allocator alloc)
         {
             _alloc = alloc;
-            _fileList = new List<string>();
+            _pathList = new List<string>();
 
             _blockSize = Define.DefaultDecodeBlock;
             _runningJob = new NativeList<JobInfo>(_alloc);
@@ -282,6 +286,8 @@ namespace NativeStringCollections
 
             _updateQueueTmp = new NativeList<QueueRequest>(_alloc);
             _updateLoadTgtTmp = new NativeList<int>(_alloc);
+
+            _unLoadJob = new UnLoadJob<T>(alloc);
         }
         public void Dispose()
         {
@@ -305,6 +311,8 @@ namespace NativeStringCollections
 
                 _updateQueueTmp.Dispose();
                 _updateLoadTgtTmp.Dispose();
+
+                _unLoadJob.Dispose();
             }
             // disposing managed resource
             if (disposing)
@@ -316,7 +324,7 @@ namespace NativeStringCollections
         }
         public void Clear()
         {
-            _fileList.Clear();
+            _pathList.Clear();
 
             _data.Clear();
             for(int i=0; i<_state.Length; i++)
@@ -327,7 +335,7 @@ namespace NativeStringCollections
         }
         ~AsyncTextFileLoader() { this.Dispose(); }
 
-        public int Length { get { return _fileList.Count; } }
+        public int Length { get { return _pathList.Count; } }
         public Encoding Encoding
         {
             get { return _encoding; }
@@ -352,7 +360,7 @@ namespace NativeStringCollections
 
         public unsafe void AddFile(string str)
         {
-            _fileList.Add(str);
+            _pathList.Add(str);
 
             _data.Add(new T());
             _data[_data.Count - 1].Init();
@@ -370,21 +378,32 @@ namespace NativeStringCollections
             get
             {
                 var list = new List<string>();
-                foreach (var s in _fileList) list.Add(s);
+                foreach (var s in _pathList) list.Add(s);
                 return list;
             }
         }
         public string GetFile(int index)
         {
-            return _fileList[index];
+            return _pathList[index];
         }
-        public List<T> DataList { get { return _data; } }
+        public unsafe List<T> DataList
+        {
+            get
+            {
+                for(int i=0; i<_state.Length; i++)
+                {
+                    if (!_state[i].Target->IsStandby)
+                        throw new InvalidOperationException($"the job running now for fileIndex = {i}.");
+                }
+                return _data;
+            }
+        }
         public unsafe T this[int fileIndex]
         {
             get
             {
-                if (!_state[fileIndex].Target->IsCompleted)
-                    throw new InvalidOperationException("the read job running now.");
+                if (!_state[fileIndex].Target->IsStandby)
+                    throw new InvalidOperationException($"the job running now for fileIndex = {fileIndex}.");
                 return _data[fileIndex];
             }
         }
@@ -399,7 +418,7 @@ namespace NativeStringCollections
         }
         public void UnLoadFile(int index)
         {
-            _requestQueue.Enqueue(new QueueRequest(index, FileAction.Dispose));
+            _requestQueue.Enqueue(new QueueRequest(index, FileAction.UnLoad));
         }
 
         public void Update()
@@ -414,8 +433,12 @@ namespace NativeStringCollections
 
         private unsafe void UpdateImpl(bool flush_all_jobs = false)
         {
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+            var sb = new StringBuilder();
+#endif
+
             // check job completed or not
-            for(int i= _runningJob.Length-1; i>=0; i--)
+            for (int i= _runningJob.Length-1; i>=0; i--)
             {
                 var job_info = _runningJob[i];
                 var read_state = _state[job_info.FileIndex];
@@ -426,14 +449,26 @@ namespace NativeStringCollections
 
                     this.ReleaseParser(job_info.ParserID);
                     _runningJob.RemoveAt(i);
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+                    sb.Append($"  -- Loading file: index = {job_info.FileIndex} was completed.\n");
+#endif
                 }
             }
+            if(_unLoadJob.State == ReadJobState.WaitForCallingComplete)
+            {
+                _unLoadJob.Complete();
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+                for (int i=0; i<_unLoadJob._target.Length; i++)
+                {
+                    sb.Append($"  -- UnLoading file: index = {_unLoadJob._target[i].file_index} was completed.\n");
+                }
+#endif
+                _unLoadJob.Clear();
+            }
 
-#if UNITY_EDITOR
-            var sb = new StringBuilder();
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
             if (_requestQueue.Count > 0)
             {
-                sb.Append(" >> AsyncTextFileLoader.Update() >> \n");
                 sb.Append($"   _requestQueue.Count = {_requestQueue.Count}\n");
                 sb.Append($"   _runningJob.Length  = {_runningJob.Length}\n");
                 sb.Append($"   _maxJobCount        = {_maxJobCount}\n");
@@ -442,10 +477,10 @@ namespace NativeStringCollections
             // no requests. or all available parser were running. retry in next Update().
             if (_requestQueue.Count == 0 || (_maxJobCount - _runningJob.Length <= 0 && !flush_all_jobs))
             {
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                 if(sb.Length > 0)
                 {
-                    Debug.Log(sb.ToString());
+                    Debug.Log(" >> AsyncTextFileLoader.Update() >> \n" + sb.ToString());
                     sb.Clear();
                 }
 #endif
@@ -481,7 +516,7 @@ namespace NativeStringCollections
             for(int i=0; i<_updateQueueTmp.Length; i++)
             {
                 var act = _updateQueueTmp[i];
-                if(act.action == FileAction.Dispose)
+                if(act.action == FileAction.UnLoad)
                 {
                     var tgt_state = _state[act.fileIndex];
                     tgt_state.Target->RefCount--;
@@ -493,26 +528,34 @@ namespace NativeStringCollections
                         {
                             // remove from loading order (file loading is not performed)
                             _updateLoadTgtTmp.RemoveAtSwapBack(found_index);
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                             sb.Append($"  -- loading index = {act.fileIndex} was cancelled.\n");
 #endif
                         }
                         else
                         {
                             // remove from loaded data
-                            if (_state[act.fileIndex].Target->IsCompleted)
+                            if (_unLoadJob.State == ReadJobState.Completed && _state[act.fileIndex].Target->IsStandby)
                             {
-                                _data[act.fileIndex].UnLoad();
-                                _state[act.fileIndex].Target->State = ReadJobState.UnLoaded;
-#if UNITY_EDITOR
-                                sb.Append($"  -- index = {act.fileIndex} was unloaded.\n");
+                                //--- unload in main thread
+                                //_data[act.fileIndex].UnLoad();
+                                //_state[act.fileIndex].Target->State = ReadJobState.UnLoaded;
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+                                //sb.Append($"  -- index = {act.fileIndex} was unloaded.\n");
+#endif
+
+                                //--- unload in job (workaround for LargeAllocation.Free() cost in T.UnLoad().)
+                                int file_index = act.fileIndex;
+                                _unLoadJob.AddUnLoadTarget(file_index, _data[file_index], _state[file_index]);
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+                                sb.Append($"   run the UnLoadJob: file index = {file_index}");
 #endif
                             }
                             else
                             {
                                 // now loading. unload request will try in next update.
                                 _requestQueue.Enqueue(act);
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                                 sb.Append($"  -- index = {act.fileIndex} is loading in progress.");
                                 sb.Append(" retry unload in next Update().\n");
 #endif
@@ -521,27 +564,30 @@ namespace NativeStringCollections
                     }
                     if (tgt_state.Target->RefCount < 0)
                     {
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                         var sb_e = new StringBuilder();
                         sb_e.Append(" >> AsyncTextFileLoader.Update() >> \n");
                         sb_e.Append($"  invalid unloading for index = {act.fileIndex}.\n");
                         Debug.LogError(sb_e.ToString());
 #endif
-                        throw new InvalidOperationException("invalid UnLoading.");
+                        throw new InvalidOperationException($"invalid UnLoading for index = {act.fileIndex}.");
                     }
                 }
             }
             _updateQueueTmp.Clear();
 
             // schedule jobs
-            //--- supply parsers
+            //--- unload job
+            _unLoadJob.UnLoadAsync();
+
+            //--- supply parsers for load job
             int n_add_parser = Math.Max(_updateLoadTgtTmp.Length - _parserAvail.Count, 0);
             if (!flush_all_jobs)
             {
                 n_add_parser = Math.Min(this.MaxJobCount - _parserPool.Count, n_add_parser);
             }
             for (int i = 0; i < n_add_parser; i++) this.GenerateParser();
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
             if(n_add_parser > 0)
             {
                 sb.Append($"   {n_add_parser} parsers were generated.\n");
@@ -557,9 +603,9 @@ namespace NativeStringCollections
                 var p_tmp = _parserPool[p_id];
                 var p_state = _state[file_index];
                 p_tmp.BlockSize = _blockSize;
-                p_tmp.ReadFileAsync(_fileList[file_index], _encoding, _data[file_index], p_state);
+                p_tmp.ReadFileAsync(_pathList[file_index], _encoding, _data[file_index], p_state);
                 _runningJob.Add(new JobInfo(file_index, p_id));
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                 sb.Append($"   run the ParseJob: file index = {file_index}");
                 sb.Append($", parser_id = {p_id}\n");
 #endif
@@ -569,16 +615,16 @@ namespace NativeStringCollections
             for (int i=n_job; i<_updateLoadTgtTmp.Length; i++)
             {
                 this.LoadFile(_updateLoadTgtTmp[i]);
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                 sb.Append($"   loadning queue: {_updateLoadTgtTmp[i]} is pending.\n");
 #endif
             }
             _updateLoadTgtTmp.Clear();
 
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
             if (sb.Length > 0)
             {
-                Debug.Log(sb.ToString());
+                Debug.Log(" >> AsyncTextFileLoader.Update() >> \n" + sb.ToString());
                 sb.Clear();
             }
 #endif
@@ -610,7 +656,7 @@ namespace NativeStringCollections
             {
                 // return into queue
                 _parserAvail.Enqueue(parser_id);
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                 var sb = new StringBuilder();
                 sb.Append(" >> AsyncTextFileLoader >> \n");
                 sb.Append($"  parser id = {parser_id} was returned into pool.\n");
@@ -622,7 +668,7 @@ namespace NativeStringCollections
                 // dispose excessive parser
                 _parserPool[parser_id].Dispose();
                 _parserPool.Remove(parser_id);
-#if UNITY_EDITOR
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                 var sb = new StringBuilder();
                 sb.Append(" >> AsyncTextFileLoader >> \n");
                 sb.Append($"  parser id = {parser_id} was disposed.\n");
@@ -644,295 +690,12 @@ namespace NativeStringCollections
             {
                 var p_tmp = new ParseJob<T>(_alloc);
                 p_tmp.BlockSize = _blockSize;
-                p_tmp.ReadFileInMainThread(_fileList[file_index], _encoding, _data[file_index], p_state);
+                p_tmp.ReadFileInMainThread(_pathList[file_index], _encoding, _data[file_index], p_state);
                 p_tmp.Dispose();
                 p_state.Target->State = ReadJobState.Completed;
             }
 
             p_state.Target->RefCount++;
-        }
-    }
-
-    namespace Impl
-    {
-        internal struct ReadStateImpl
-        {
-            public ReadJobState State;
-            public int Length;
-            public int Read;
-            public int RefCount;
-
-            public double DelayReadAsync;
-            public double DelayParseText;
-            public double DelayPostProc;
-
-            public int ParserID;
-
-            public void Clear()
-            {
-                State = ReadJobState.UnLoaded;
-                Length = 0;
-                Read = 0;
-                RefCount = 0;
-
-                ParserID = -1;
-
-                DelayReadAsync = -1;
-                DelayParseText = -1;
-                DelayPostProc = -1;
-            }
-            public bool IsCompleted
-            {
-                get
-                {
-                    return (State == ReadJobState.Completed) || (State == ReadJobState.UnLoaded);
-                }
-            }
-            public ReadState GetState()
-            {
-                return new ReadState(State, Length, Read, RefCount, DelayReadAsync, DelayParseText, DelayPostProc);
-            }
-        }
-
-        internal struct ParseJobInfo
-        {
-            public int decodeBlockSize;
-            public int blockNum;
-            public int blockPos;
-
-            public Boolean allocated;
-            public Boolean disposeHandle;
-
-            public JobHandle jobHandle;
-        }
-        internal unsafe struct ParseJob<Tdata> : IJob, IDisposable
-            where Tdata : ITextFileParser
-        {
-            private AsyncByteReader _byteReader;
-            private TextDecoder _decoder;
-
-            private NativeStringList _lines;
-
-            GCHandle<Tdata> _data;
-            PtrHandle<ReadStateImpl> _state_ptr;    // monitoring state from main thread
-
-            private PtrHandle<ParseJobInfo> _info;  // internal use
-            private GCHandle<System.Diagnostics.Stopwatch> _timer;
-            private double _timer_ms_coef;
-
-            public ParseJob(Allocator alloc)
-            {
-                _byteReader = new AsyncByteReader(alloc);
-                _decoder = new TextDecoder(alloc);
-
-                _lines = new NativeStringList(alloc);
-
-                _data = new GCHandle<Tdata>();
-                _state_ptr = new PtrHandle<ReadStateImpl>();  // do not allocate (this will be assigned). used as reference.
-
-                _info = new PtrHandle<ParseJobInfo>(alloc);
-
-                _info.Target->decodeBlockSize = Define.DefaultDecodeBlock;
-                _info.Target->blockNum = 0;
-                _info.Target->blockPos = 0;
-
-                _info.Target->allocated = true;
-                _info.Target->disposeHandle = false;
-
-                _info.Target->jobHandle = new JobHandle();
-
-                _timer = new GCHandle<System.Diagnostics.Stopwatch>();
-                _timer_ms_coef = 1.0;
-            }
-            public void Dispose()
-            {
-                this.Dispose(true);
-                GC.SuppressFinalize(this);
-            }
-            public void Dispose(bool disposing)
-            {
-                if (disposing)
-                {
-                    this.Complete();
-
-                    this.DisposeHandle();
-
-                    if (_info.Target->allocated)
-                    {
-                        _byteReader.Dispose();
-                        _decoder.Dispose();
-
-                        _lines.Dispose();
-
-                        _info.Target->allocated = false;
-                    }
-                    _info.Dispose();
-                }
-            }
-            private void DisposeHandle()
-            {
-                if (_info.Target->disposeHandle)
-                {
-                    _decoder.ReleaseDecoder();
-
-                    _data.Dispose();
-                    _timer.Dispose();
-
-                    _info.Target->disposeHandle = false;
-                }
-            }
-            public int BlockSize
-            {
-                get { return _info.Target->decodeBlockSize; }
-                set { if (value > Define.DefaultDecodeBlock) _info.Target->decodeBlockSize = value; }
-            }
-            public JobHandle ReadFileAsync(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
-            {
-                this.InitializeReadJob(encoding, data, state_ptr);
-
-                var job_byteReader = _byteReader.ReadFileAsync(path);
-                _info.Target->jobHandle = this.Schedule(job_byteReader);
-
-                return _info.Target->jobHandle;
-            }
-            public void ReadFileInMainThread(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
-            {
-                this.InitializeReadJob(encoding, data, state_ptr);
-
-                var job_byteReader = _byteReader.ReadFileAsync(path);
-                job_byteReader.Complete();
-                this.Run();
-            }
-            private void InitializeReadJob(Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
-            {
-                this.DisposeHandle();
-
-                _decoder.SetEncoding(encoding);
-
-                _data.Create(data);
-                _state_ptr = state_ptr;
-                _state_ptr.Target->State = ReadJobState.ReadAsync;
-                _state_ptr.Target->DelayReadAsync = -1;
-                _state_ptr.Target->DelayParseText = -1;
-                _state_ptr.Target->DelayPostProc = -1;
-
-                _info.Target->disposeHandle = true;
-
-                _timer.Create(new System.Diagnostics.Stopwatch());
-                _timer.Target.Start();
-                _timer_ms_coef = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-            }
-            public void Complete()
-            {
-                _info.Target->jobHandle.Complete();
-                this.DisposeHandle();
-            }
-            public bool IsCreated { get { return _info.Target->allocated; } }
-
-
-
-            public void Execute()
-            {
-                // read async is completed
-                _state_ptr.Target->DelayReadAsync = this.TimerElapsedMilliSeconds();
-                _timer.Target.Restart();
-
-                // initialize
-                if (_info.Target->decodeBlockSize >= _byteReader.Length)
-                {
-                    _info.Target->blockNum = 1;
-                }
-                else
-                {
-                    _info.Target->blockNum = (_byteReader.Length / _info.Target->decodeBlockSize) + 1;
-                }
-                _info.Target->blockPos = 0;
-                _state_ptr.Target->Length = _info.Target->blockNum;
-                _state_ptr.Target->Read = 0;
-                _state_ptr.Target->State = ReadJobState.ParseText;
-
-                _decoder.Clear();
-
-                // parse text
-                this.ParseText();
-                _state_ptr.Target->DelayParseText = this.TimerElapsedMilliSeconds();
-                _timer.Target.Restart();
-
-                // post proc
-                _data.Target.PostReadProc();
-                _timer.Target.Stop();
-
-                _state_ptr.Target->DelayPostProc = this.TimerElapsedMilliSeconds();
-
-                // wait for Complete()
-                _state_ptr.Target->State = ReadJobState.WaitForCallingComplete;
-            }
-            private void ParseText()
-            {
-                _data.Target.Clear();
-
-                Boolean continue_flag = true;
-                for (int pos = 0; pos < _info.Target->blockNum; pos++)
-                {
-                    _lines.Clear();
-                    this.ParseLinesFromBuffer();
-                    for (int i=0; i<_lines.Length; i++)
-                    {
-                        var str = _lines[i];
-                        continue_flag = _data.Target.ParseLine(str.GetReadOnly());
-
-                        // abort
-                        if (!continue_flag)
-                        {
-                            return;
-                        }
-                    }
-
-                    _state_ptr.Target->Read = pos;
-                }
-            }
-
-            private unsafe void ParseLinesFromBuffer()
-            {
-                // decode byte buffer
-                long byte_pos = _info.Target->blockPos * _info.Target->decodeBlockSize;
-                int decode_len = (int)(_byteReader.Length - byte_pos);
-                if (decode_len <= 0) return;
-                int byte_len = Math.Min(_info.Target->decodeBlockSize, decode_len);
-
-                byte* byte_ptr = (byte*)_byteReader.GetUnsafePtr() + byte_pos;
-                _decoder.GetLines(_lines, byte_ptr, byte_len);
-
-                _info.Target->blockPos++;
-
-                if(_info.Target->blockPos == _info.Target->blockNum)
-                {
-                    if (!_decoder.IsEmpty)
-                    {
-                        using(var buff = new NativeList<char>(Allocator.Temp))
-                        {
-                            _decoder.GetInternalBuffer(buff);
-                            _lines.Add((char*)buff.GetUnsafePtr(), buff.Length);
-                        }
-                    }
-                }
-
-                /*
-                var sb = new StringBuilder();
-                sb.Append("decoded lines:\n");
-                foreach(var se in _lines)
-                {
-                    sb.Append(se.ToString());
-                    sb.Append('\n');
-                }
-                Debug.Log(sb.ToString());
-                */
-                
-            }
-            private double TimerElapsedMilliSeconds()
-            {
-                return _timer.Target.ElapsedTicks * _timer_ms_coef;
-            }
         }
     }
 }

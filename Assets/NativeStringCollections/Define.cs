@@ -27,10 +27,15 @@ namespace NativeStringCollections
         UnLoaded,
         Completed,
 
-        // in process
+        // in process for loading
         ReadAsync,
         ParseText,
         PostProc,
+
+        // in process for unloading
+        UnLoadJob,
+
+        // waiting for calling Complete()
         WaitForCallingComplete,
     }
 }
