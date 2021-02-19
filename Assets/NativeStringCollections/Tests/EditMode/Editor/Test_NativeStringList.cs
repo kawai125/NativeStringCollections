@@ -55,7 +55,7 @@ namespace Tests
         [Test]
         public void CheckAPI_ReallocateTracer()
         {
-#if NATIVE_STRING_COLLECTION_TRACE_REALLOCATION
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
             string str = "1234567890--@@";
 
             var NSL = new NativeStringList(Allocator.TempJob);
@@ -69,7 +69,7 @@ namespace Tests
                 NSL.Add(str);
                 try
                 {
-                    Debug.Log("add: " + i.ToString() + ", entity: " + entity.ToString() + ", NSL [Size/Capacity] = [" + NSL.Size.ToString() + "/" + NSL.Capacity.ToString() + "]");
+                    Debug.Log($"add: {i}, entity: {entity.ToString()}, NSL [Size/Capacity] = [{NSL.Size}/{NSL.Capacity}]");
                 }
                 catch (InvalidOperationException e)
                 {
