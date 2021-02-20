@@ -14,7 +14,7 @@ namespace NativeStringCollections
     {
         internal struct ReadStateImpl
         {
-            public ReadJobState State;
+            public ReadJobState JobState;
             public int Length;
             public int Read;
             public int RefCount;
@@ -27,7 +27,7 @@ namespace NativeStringCollections
 
             public void Clear()
             {
-                State = ReadJobState.UnLoaded;
+                JobState = ReadJobState.UnLoaded;
                 Length = 0;
                 Read = 0;
                 RefCount = 0;
@@ -42,12 +42,12 @@ namespace NativeStringCollections
             {
                 get
                 {
-                    return (State == ReadJobState.Completed) || (State == ReadJobState.UnLoaded);
+                    return (JobState == ReadJobState.Completed) || (JobState == ReadJobState.UnLoaded);
                 }
             }
             public ReadState GetState()
             {
-                return new ReadState(State, Length, Read, RefCount, DelayReadAsync, DelayParseText, DelayPostProc);
+                return new ReadState(JobState, Length, Read, RefCount, DelayReadAsync, DelayParseText, DelayPostProc);
             }
         }
 
@@ -141,7 +141,7 @@ namespace NativeStringCollections
             public int BlockSize
             {
                 get { return _info.Target->decodeBlockSize; }
-                set { if (value > Define.DefaultDecodeBlock) _info.Target->decodeBlockSize = value; }
+                set { if (value >= Define.MinDecodeBlock) _info.Target->decodeBlockSize = value; }
             }
             public JobHandle ReadFileAsync(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
             {
@@ -168,7 +168,7 @@ namespace NativeStringCollections
 
                 _data.Create(data);
                 _state_ptr = state_ptr;
-                _state_ptr.Target->State = ReadJobState.ReadAsync;
+                _state_ptr.Target->JobState = ReadJobState.ReadAsync;
                 _state_ptr.Target->DelayReadAsync = -1;
                 _state_ptr.Target->DelayParseText = -1;
                 _state_ptr.Target->DelayPostProc = -1;
@@ -206,7 +206,7 @@ namespace NativeStringCollections
                 _info.Target->blockPos = 0;
                 _state_ptr.Target->Length = _info.Target->blockNum;
                 _state_ptr.Target->Read = 0;
-                _state_ptr.Target->State = ReadJobState.ParseText;
+                _state_ptr.Target->JobState = ReadJobState.ParseText;
 
                 // parse text
                 this.ParseText();
@@ -220,7 +220,7 @@ namespace NativeStringCollections
                 _state_ptr.Target->DelayPostProc = this.TimerElapsedMilliSeconds();
 
                 // wait for Complete()
-                _state_ptr.Target->State = ReadJobState.WaitForCallingComplete;
+                _state_ptr.Target->JobState = ReadJobState.WaitForCallingComplete;
             }
             private void ParseText()
             {
@@ -257,7 +257,7 @@ namespace NativeStringCollections
                 int byte_len = Math.Min(_info.Target->decodeBlockSize, decode_len);
 
                 byte* byte_ptr = (byte*)_byteReader.GetUnsafePtr() + byte_pos;
-                _decoder.GetLines(_lines, byte_ptr, byte_len);
+                _decoder.GetLines(ref _lines, byte_ptr, byte_len);
 
                 _info.Target->blockPos++;
 
@@ -308,7 +308,7 @@ namespace NativeStringCollections
             }
             public unsafe void UnLoad()
             {
-                this.state_ptr.Target->State = ReadJobState.UnLoaded;
+                this.state_ptr.Target->JobState = ReadJobState.UnLoaded;
                 this.data.Target.UnLoad();
             }
         }
@@ -371,7 +371,7 @@ namespace NativeStringCollections
                 }
             }
 
-            public unsafe ReadJobState State { get { return _info.Target->job_state; } }
+            public unsafe ReadJobState JobState { get { return _info.Target->job_state; } }
 
             public unsafe void Execute()
             {

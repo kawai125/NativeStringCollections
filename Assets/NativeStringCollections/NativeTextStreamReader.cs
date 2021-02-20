@@ -156,7 +156,7 @@ namespace NativeStringCollections
                     this.ReadStream();
                     fixed(byte* byte_ptr = _byteBuffer)
                     {
-                        _decoder.GetLines(_lines, byte_ptr, _byteLength);
+                        _decoder.GetLines(ref _lines, byte_ptr, _byteLength);
                     }
                 }
 
@@ -218,7 +218,7 @@ namespace NativeStringCollections
                 this.ReadStream();
                 fixed (byte* byte_ptr = _byteBuffer)
                 {
-                    _decoder.GetLines(_lines, byte_ptr, _byteLength);
+                    _decoder.GetLines(ref _lines, byte_ptr, _byteLength);
                 }
             }
 

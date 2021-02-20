@@ -16,7 +16,8 @@ namespace NativeStringCollections.Demo
         public long ID;
         public StringEntity Name;
         public int HP, MP;
-        public float Attack, Defence;
+        //public float Attack, Defence;
+        public int Attack, Defence;
 
         public bool Equals(CharaData rhs)
         {
@@ -88,12 +89,17 @@ namespace NativeStringCollections.Demo
             var name_tmp = "Chara" + (vv * vv).GetHashCode().ToString();
             NSL.Add(name_tmp);
 
+            vv *= 0.1f;
+            vv = vv * vv;
+
             tmp.ID = id;
             tmp.Name = NSL.Last;
             tmp.HP = (int)id * 100;
             tmp.MP = (int)id * 50;
-            tmp.Attack = vv * 4;
-            tmp.Defence = vv * 3;
+            //tmp.Attack = vv * 4;
+            //tmp.Defence = vv * 3;
+            tmp.Attack = (int)id * 4;
+            tmp.Defence = (int)id * 3;
 
             return tmp;
         }
@@ -104,17 +110,25 @@ namespace NativeStringCollections.Demo
         private string _path = "";
         private string _lf = "\n";
         private char _delim = '\t';
-        private Task _task;
-        private bool _run = false;
+        private bool _standby = true;
 
         private int _n_chara;
         private int _i_chara;
+
+        private float _n_chara_inv = 1.0f;
 
         private System.Diagnostics.Stopwatch _timer = new System.Diagnostics.Stopwatch();
 
         public int N { get { return _n_chara; } }
         public int Inc { get { return _i_chara; } }
-        public bool IsCompleted { get { return !_run || (_run && _task.IsCompleted); } }
+        public bool IsStandby { get { return _standby; } }
+        public float Progress
+        {
+            get
+            {
+                return _i_chara * _n_chara_inv;
+            }
+        }
 
         public void SetPath(string path)
         {
@@ -132,27 +146,36 @@ namespace NativeStringCollections.Demo
         /// <param name="n">the total number of CharaData</param>
         /// <param name="d">the interval of ID, must be >= 1.</param>
         /// <param name="r">the ratio of dummy data line, must be in range of [0, 1).</param>
+        public async void GenerateAsync(Encoding encoding, int n, int d, float r)
+        {
+            await Task.Run(() =>
+            {
+                this.Generate(encoding, n, d, r);
+            });
+        }
         public void Generate(Encoding encoding, int n, int d, float r)
         {
-            if (!IsCompleted) throw new InvalidOperationException("the task running now.");
+            if (!_standby) throw new InvalidOperationException("the task running now.");
+            _standby = false;
+            this.CheckArgs(n, d, r);
 
+            _timer.Restart();
+            
+            _n_chara = n;
+            _n_chara_inv = 1.0f / n;
+            this.GenerateImpl(encoding, n, d, r);
+
+            _timer.Stop();
+        }
+        private void CheckArgs(int n, int d, float r)
+        {
             if (n <= 10) throw new ArgumentOutOfRangeException("n must be > 10.");
             if (d <= 0) throw new ArgumentOutOfRangeException("d must be > 0.");
             if (r < 0.0 || r >= 1.0) throw new ArgumentOutOfRangeException("r must be in range of [0,1).");
-
-            _task = Task.Run(() =>
-            {
-                _timer.Restart();
-
-                _run = true;
-                _n_chara = n;
-                this.GenerateImpl(encoding, n, d, r);
-
-                _timer.Stop();
-            });
         }
         private unsafe void GenerateImpl(Encoding encoding, int n, int d, float r)
         {
+            _i_chara = 0;
             var sb = new StringBuilder();
 
             Debug.Log(" >> write header >> ");
@@ -283,6 +306,8 @@ namespace NativeStringCollections.Demo
 
             id_Sequence.Dispose();
             NSL_tmp.Dispose();
+
+            _standby = true;
         }
     }
 }

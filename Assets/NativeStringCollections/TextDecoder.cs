@@ -82,12 +82,12 @@ namespace NativeStringCollections.Impl
             }
         }
 
-        public unsafe int GetLines(NativeStringList lines, byte* ptr, int len)
+        public unsafe int GetLines(ref NativeStringList lines, byte* ptr, int len)
         {
             // get new chars from byte buffer
             this.GetCharsImpl(ptr, len);
 
-            return this.GetLinesImpl(lines);
+            return this.GetLinesImpl(ref lines);
         }
         public unsafe void GetChars(NativeList<char> chars, byte* ptr, int len)
         {
@@ -112,7 +112,7 @@ namespace NativeStringCollections.Impl
                 _charBuff.Clear();
             }
         }
-        private unsafe int GetLinesImpl(NativeStringList lines)
+        private unsafe int GetLinesImpl(ref NativeStringList lines)
         {
             // move continue buffer data into head of new charBuff
             if (_continueBuff.Length > 0)

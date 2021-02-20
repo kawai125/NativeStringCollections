@@ -10,6 +10,8 @@ namespace NativeStringCollections.Impl
 
     internal struct NativeHeadRemovableList<T> : IDisposable where T : unmanaged
     {
+        private const int HeadCapacityFactor = 4;
+
         private NativeList<T> _list;
         private PtrHandle<int> _start;
 
@@ -57,8 +59,8 @@ namespace NativeStringCollections.Impl
             }
             else
             {
-                _start.Value = (int)(_list.Capacity / 4);
-                _list.ResizeUninitialized(_start);
+                this.InitStartPoint();
+                _list.ResizeUninitialized(_start.Value);
             }
         }
         public void CopyFrom(T[] array) { _list.CopyFrom(array); }
@@ -159,19 +161,23 @@ namespace NativeStringCollections.Impl
         public unsafe void Shrink()
         {
             // remove deleted head area
-            int new_size = Length;
-            if (new_size > 0)
+            if (this.Length > 0)
             {
-                T* dest = (T*)_list.GetUnsafePtr();
-                T* source = dest + _start;
-                UnsafeUtility.MemMove(dest, source, new_size);
-                _list.ResizeUninitialized(new_size);
+                T* source = (T*)this.GetUnsafePtr();
+                this.InitStartPoint();
+                T* dest = (T*)this.GetUnsafePtr();
+
+                UnsafeUtility.MemMove(dest, source, this.Length);
+                _list.ResizeUninitialized(_start.Value + this.Length);
             }
             else
             {
-                _list.Clear();
+                this.Clear();
             }
-            _start.Value = 0;
+        }
+        private void InitStartPoint()
+        {
+            _start.Value = (int)(_list.Capacity / HeadCapacityFactor);
         }
 
         public unsafe void* GetUnsafePtr()

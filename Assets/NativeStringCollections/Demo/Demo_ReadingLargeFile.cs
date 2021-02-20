@@ -1,4 +1,8 @@
-﻿using System;
+﻿// select using AsyncTextFileLoader<> (optimized for multiple files and multiple data users)
+//     or using AsyncTextFileReader<> (simple implementation: 1 file and 1 job)
+#define USE_ASYNC_TEXT_FILE_READER
+
+using System;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
@@ -6,7 +10,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Unity.Collections;
-using Unity.Jobs;
 
 using TMPro;
 
@@ -87,7 +90,12 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
 
     private CharaDataGenerator _generator;
+
+#if USE_ASYNC_TEXT_FILE_READER
+    private AsyncTextFileReader<CharaDataParser> _loader;
+#else
     private AsyncTextFileLoader<CharaDataParser> _loader;
+#endif
     //private AsyncTextFileLoader<DummyParser> _loader;
 
     // Start is called before the first frame update
@@ -95,10 +103,12 @@ public class Demo_ReadingLargeFile : MonoBehaviour
     {
 #if UNITY_EDITOR
         NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
-        _path = Application.dataPath + "/../Assets/NativeStringCollections/Demo/sample_demo.tsv";
+        _path = Application.dataPath + "/../Assets/NativeStringCollections/Demo/Temp/";
 #else
-        _path = Application.dataPath + "/../sample_demo.tsv";
+        _path = Application.dataPath + "/Demo/";
 #endif
+        DirectoryUtil.SafeCreateDirectory(_path);
+        _path += "sample_demo.tsv";
 
         _encodingList = new List<Encoding>();
         _encodingList.Clear();
@@ -188,34 +198,49 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
         _generator = new CharaDataGenerator();
         _generator.SetPath(_path);
-        _generatorPrevState = _generator.IsCompleted;
+        _generatorPrevState = _generator.IsStandby;
 
+#if USE_ASYNC_TEXT_FILE_READER
+        _loader = new AsyncTextFileReader<CharaDataParser>(_path, Allocator.Persistent);
+        _loaderPrevState = _loader.GetState;
+#else
         _loader = new AsyncTextFileLoader<CharaDataParser>(Allocator.Persistent);
         //_loader = new AsyncTextFileLoader<DummyParser>(Allocator.Persistent);
         _loader.AddFile(_path);
         _loaderPrevState = _loader.GetState(0);
+#endif
     }
     private void OnDestroy()
     {
+#if USE_ASYNC_TEXT_FILE_READER
+        var data = _loader.Data;
+        data.Dispose();
+        _loader.Dispose();
+#else
         foreach (var data in _loader.DataList) data.Dispose();
         _loader.Dispose();
+#endif
     }
 
     // Update is called once per frame
     void Update()
     {
+#if USE_ASYNC_TEXT_FILE_READER
+        // check AsyncTextFileReader<>.JobState for calling Complete().
+        if (_loader.JobState == ReadJobState.WaitForCallingComplete) _loader.Complete();
+#else
         // calling "AsyncTextFileLoader<>.Update()" on update is necessary.
         _loader.Update();
-
+#endif
 
         // progress bar
-        if(_generator.N > 0 && !_generator.IsCompleted)
+        if(_generator.N > 0 && !_generator.IsStandby)
         {
             _generateProgress = (float)_generator.Inc / (float)_generator.N;
         }
         else
         {
-            if (_generator.IsCompleted && _generateInCurrentProc)
+            if (_generator.IsStandby && _generateInCurrentProc)
             {
                 _generateProgress = 100.0f;
             }
@@ -226,7 +251,11 @@ public class Demo_ReadingLargeFile : MonoBehaviour
         }
         _generateProgressSlider.value = _generateProgress;
 
+#if USE_ASYNC_TEXT_FILE_READER
+        var loadInfo = _loader.GetState;
+#else
         var loadInfo = _loader.GetState(0);
+#endif
         if(loadInfo.Length > 0 && !loadInfo.IsStandby)
         {
             _loadProgress = (float)loadInfo.Read / (float)loadInfo.Length;
@@ -246,7 +275,7 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
 
         // update button
-        if (_generator.IsCompleted)
+        if (_generator.IsStandby)
         {
             _generateButton.interactable = true;
             if(!_generatorPrevState) _generateButton.name = "Write File";
@@ -268,14 +297,14 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
 
         // progress text
-        if(loadInfo.State == ReadJobState.ParseText)
+        if(loadInfo.JobState == ReadJobState.ParseText)
         {
-            _loadProgressText.text = loadInfo.State.ToString() + ": [" + loadInfo.Read.ToString() + '/' + loadInfo.Length.ToString() + ']';
+            _loadProgressText.text = loadInfo.JobState.ToString() + ": [" + loadInfo.Read.ToString() + '/' + loadInfo.Length.ToString() + ']';
         }
         else
         {
             var sb = new StringBuilder();
-            sb.Append(loadInfo.State.ToString());
+            sb.Append(loadInfo.JobState.ToString());
             if(loadInfo.RefCount > 0)
             {
                 sb.Append(", RefCount = " + loadInfo.RefCount.ToString());
@@ -284,20 +313,25 @@ public class Demo_ReadingLargeFile : MonoBehaviour
         }
 
         // generate time
-        if (_generator.IsCompleted)
+        if (_generator.IsStandby)
         {
             _generateTimeText.text = $"generate file in {_generator.ElapsedMilliseconds} ms";
         }
 
         // load time
-        if(loadInfo.State != _loaderPrevState.State)
+        if(loadInfo.JobState != _loaderPrevState.JobState)
         {
             if (loadInfo.IsCompleted)
             {
+#if USE_ASYNC_TEXT_FILE_READER
+                var data = _loader.Data;
+#else
+                var data = _loader[0];
+#endif
 
                 var sb = new StringBuilder();
-                sb.Append("# of Lines : " + _loader[0].Lines.ToString() + '\n');
-                sb.Append("# of Data : " + _loader[0].Data.Length.ToString() + '\n');
+                sb.Append("# of Lines : " + data.Lines.ToString() + '\n');
+                sb.Append("# of Data : " + data.Data.Length.ToString() + '\n');
                 sb.Append('\n');
                 sb.Append("ReadAsync: " + loadInfo.DelayReadAsync.ToString("e") + '\n');
                 sb.Append("ParseText: " + loadInfo.DelayParseText.ToString("e") + '\n');
@@ -334,13 +368,13 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
 
         // save current state
-        _generatorPrevState = _generator.IsCompleted;
-        _loaderPrevState = _loader.GetState(0);
+        _generatorPrevState = _generator.IsStandby;
+        _loaderPrevState = loadInfo;
     }
 
     public void OnClickGenerateFile()
     {
-        if (_generator.IsCompleted)
+        if (_generator.IsStandby)
         {
             _generateButton.interactable = false;
             _generateButton.name = "Now Writing...";
@@ -348,7 +382,7 @@ public class Demo_ReadingLargeFile : MonoBehaviour
             var e = _encodingList[_dropdownEncoding.value];
             int n = _dataSizeList[_dropdownDataSize.value];
             _generateInCurrentProc = true;
-            _generator.Generate(e, n, 1, 0.005f);
+            _generator.GenerateAsync(e, n, 1, 0.005f);
         }
     }
 
@@ -358,25 +392,42 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
         if (_toggleLoadFileInMainThread.isOn)
         {
+#if USE_ASYNC_TEXT_FILE_READER
+            _loader.LoadFileInMainThread();
+#else
             _loader.LoadFileInMainThread(0);
+#endif
             return;
         }
         else
         {
+#if USE_ASYNC_TEXT_FILE_READER
+            var info = _loader.GetState;
+#else
             var info = _loader.GetState(0);
+#endif
             if (info.IsStandby)
             {
                 _loadButton.interactable = false;
                 _loadButton.name = "Now Loading...";
 
                 _loader.Encoding = _encodingList[_dropdownEncoding.value];
+
+#if USE_ASYNC_TEXT_FILE_READER
+                _loader.LoadFile();
+#else
                 _loader.LoadFile(0);
+#endif
             }
         }
     }
     public void OnClickUnLoadFile()
     {
+#if USE_ASYNC_TEXT_FILE_READER
+        _loader.UnLoadFile();
+#else
         _loader.UnLoadFile(0);
+#endif
     }
 }
 

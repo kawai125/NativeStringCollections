@@ -49,8 +49,6 @@ namespace NativeStringCollections.Impl
 
         private PtrHandle<ReadCommand> _readCmd;
 
-        private Allocator _alloc;
-
 
         public int BufferSize { get { return _info.Target->bufferSize; } }
         public int Length { get { return _info.Target->dataSize; } }
@@ -61,8 +59,6 @@ namespace NativeStringCollections.Impl
         /// <param name="path"></param>
         public AsyncByteReader(Allocator alloc)
         {
-            _alloc = alloc;
-
             _byteBuffer = new NativeList<byte>(Define.MinByteBufferSize, alloc);
             _info = new PtrHandle<AsyncByteReaderInfo>(alloc);
 
