@@ -14,10 +14,10 @@ This library was tested in the below system.
 
 ## Demo scene
 
-- single file & single data user demo:
+- single file & single data user demo:  
 `/Assets/NativeStringCollections/Demo/Scenes/Demo_ReadingLargeFile.unity`
 
-- multiple files & multiple data users demo:
+- multiple files & multiple data users demo:  
 `/Assets/NativeStringCollections/Demo/Scenes/Demo_AsyncMultiFileManagement.unity`
 
 ## API
@@ -33,7 +33,7 @@ class AsyncTextFileLoader<T>  // for multi files and users
 
 where T : class, ITextFileParser, new()
 ```
-These classes can accept `class System.Text.Encoding` to decode bytestream into chars.
+These classes can accept `class System.Text.Encoding` to decode byte stream into chars.
 
 - string like NativeContainer
 ```C#
@@ -41,10 +41,10 @@ struct NativeStringList
 struct StringEntity
 struct ReadOnlyStringEntity
 ```
-The `NativeStringList` is a jagged array container like a `List<string>`, using `NativeList<char>` internally.
+The `NativeStringList` is a jagged array container like a `List<string>`, using `NativeList<char>` internally.  
 `StringEntity` and `ReadOnlyStringEntity` are the slice view of `NativeStringList`.
 
-**Note:** Because of reallocation of internal buffer, after calling Add() function of `NativeStringList` makes `StringEntity` to invalid reference.  
+**Note:** Because of reallocation of internal buffer, after calling `NativeStringList.Add()` function makes `StringEntity` to invalid reference.  
 (Tracer system is also implemented on the macro "ENABLE_UNITY_COLLECTIONS_CHECKS".)
 
 - parse functions
@@ -55,11 +55,13 @@ bool StringEntity.TryParseHex(out T value)
 where T : int32, int64, float32, or float64
 ```
 The conversion accuracy compared with `System.T.Parse()` is shown in below:
+
 |type|error|
 |:--|:--|
 |int32, int64, and float32| no differ |
 |float64| < 1.0e-15 |
 |(Hex input)|no differ|
+
 tested in thousands random strings.
 
 (see `/Assets/NativeStringCollections/Tests/EditMode/Editor/Test_StringParser.cs` for more detail)
@@ -68,7 +70,7 @@ tested in thousands random strings.
 struct NativeBase64Encoder
 struct NativeBase64Decoder
 ```
-The converter for Base64 encodings.
+The converter between Base64 encoded string and byte stream.
 
 - manipulation functions
 ```C#
