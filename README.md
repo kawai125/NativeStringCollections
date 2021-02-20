@@ -82,7 +82,7 @@ These modification functions are available.
 These functions generate `StringEntity` as new slice.
 
 ## Limitation
-When Loading more than 2 files in same timing using `AsyncTextFileLoader<T>`, that causes 'Delay' to load files.  
+When Loading 2 files or more in same timing using `AsyncTextFileLoader<T>`, that causes 'Delay' to load files.  
 N files loading may be slown as N times slower. (total time for parse file is same to when running only 1 job.)  
 I cannot found the cause of this delay.  
 Is it memory transfer bound ?
