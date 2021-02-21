@@ -50,6 +50,7 @@ namespace NativeStringCollections.Utility
                 this.CheckAllocator();
                 UnsafeUtility.Free((void*)_ptr, _alloc);
                 _ptr = null;
+                _isCreated = false;
             }
             else
             {

@@ -119,14 +119,9 @@ namespace NativeStringCollections
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public ReadOnlyStringEntity GetReadOnlySlice()
-        {
-            this.CheckReallocate();
-            return new ReadOnlyStringEntity(this);
-        }
         public static implicit operator ReadOnlyStringEntity(StringEntity val)
         {
-            return val.GetReadOnlySlice();
+            return val.GetReadOnly();
         }
 
         public bool Equals(char* ptr, int Length)
