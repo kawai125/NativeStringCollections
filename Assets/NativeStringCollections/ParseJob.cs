@@ -335,6 +335,7 @@ namespace NativeStringCollections
             {
                 this.DisposeHandle();
                 _target.Dispose();
+                _info.Dispose();
             }
             private unsafe void DisposeHandle()
             {
