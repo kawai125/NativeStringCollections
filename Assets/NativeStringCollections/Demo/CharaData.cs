@@ -210,7 +210,7 @@ namespace NativeStringCollections.Demo
             }
             //int n_swap = (int)Math.Sqrt(n);
             int n_swap = n;
-            var random = new System.Random(n_swap);
+            var random = new System.Random(n_swap * d);
             for (int i_swap = 0; i_swap < n_swap; i_swap++)
             {
                 int index = (int)(n *  random.NextDouble() * 0.95);
