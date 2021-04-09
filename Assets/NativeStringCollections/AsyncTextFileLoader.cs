@@ -228,7 +228,7 @@ namespace NativeStringCollections
         private int _maxJobCount;
         private NativeList<RunningJobInfo> _runningJob;
 
-        private NativeList<PtrHandle<ReadStateImpl>> _state;
+        private List<PtrHandle<ReadStateImpl>> _state;
         private List<T> _data;
 
 
@@ -286,7 +286,7 @@ namespace NativeStringCollections
 
             this.Encoding = Encoding.Default;
 
-            _state = new NativeList<PtrHandle<ReadStateImpl>>(_alloc);
+            _state = new List<PtrHandle<ReadStateImpl>>();
             _data = new List<T>();
 
             _requestList = new NativeList<Request>(_alloc);
@@ -312,8 +312,6 @@ namespace NativeStringCollections
                 _parserAvail.Dispose();
                 _runningJob.Dispose();
 
-                _state.Dispose();
-
                 _requestList.Dispose();
 
                 _updateLoadTgtTmp.Dispose();
@@ -325,6 +323,7 @@ namespace NativeStringCollections
             if (disposing)
             {
                 GC.SuppressFinalize(_data);
+                GC.SuppressFinalize(_state);
                 GC.SuppressFinalize(_parserPool);
                 GC.SuppressFinalize(_encoding);
             }
@@ -334,7 +333,7 @@ namespace NativeStringCollections
             _pathList.Clear();
 
             _data.Clear();
-            for(int i=0; i<_state.Length; i++)
+            for(int i=0; i<_state.Count; i++)
             {
                 _state[i].Dispose();
             }
@@ -399,7 +398,7 @@ namespace NativeStringCollections
         {
             get
             {
-                for(int i=0; i<_state.Length; i++)
+                for(int i=0; i<_state.Count; i++)
                 {
                     if (!_state[i].Target->IsStandby)
                         throw new InvalidOperationException($"the job running now for fileIndex = {i}.");
@@ -547,7 +546,7 @@ namespace NativeStringCollections
 #endif
 
                             //--- unload in job (workaround for LargeAllocation.Free() cost in T.UnLoad().)
-                            _unLoadJob.AddUnLoadTarget(id, _data[id], _state[id]);
+                            _unLoadJob.AddUnLoadTarget(id, _data[id], _state[id].Target);
 #if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                             sb.Append($"   schedule UnLoadJob: file index = {id}");
 #endif

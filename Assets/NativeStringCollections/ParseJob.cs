@@ -291,14 +291,14 @@ namespace NativeStringCollections
             }
         }
 
-        internal struct UnLoadJobTarget<Tdata>
+        internal unsafe struct UnLoadJobTarget<Tdata>
             where Tdata : class, ITextFileParser
         {
             internal GCHandle<Tdata> data;
-            internal PtrHandle<ReadStateImpl> state_ptr;
+            internal ReadStateImpl* state_ptr;
             internal int file_index;
 
-            public UnLoadJobTarget(int file_index, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
+            public UnLoadJobTarget(int file_index, Tdata data, ReadStateImpl* state_ptr)
             {
                 this.data = new GCHandle<Tdata>();
 
@@ -308,7 +308,7 @@ namespace NativeStringCollections
             }
             public unsafe void UnLoad()
             {
-                this.state_ptr.Target->JobState = ReadJobState.UnLoaded;
+                this.state_ptr->JobState = ReadJobState.UnLoaded;
                 this.data.Target.UnLoad();
             }
         }
@@ -352,7 +352,7 @@ namespace NativeStringCollections
                 _target.Clear();
             }
 
-            public unsafe void AddUnLoadTarget(int file_index, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
+            public unsafe void AddUnLoadTarget(int file_index, Tdata data, ReadStateImpl* state_ptr)
             {
                 _target.Add( new UnLoadJobTarget<Tdata>(file_index, data, state_ptr) );
                 _info.Target->alloc_handle = true;

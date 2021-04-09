@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -11,8 +12,14 @@ namespace NativeStringCollections.Utility
         [NativeDisableUnsafePtrRestriction]
         private T* _ptr;
 
-        private Allocator _alloc;
+        private readonly Allocator _alloc;
         private Boolean _isCreated;
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+        [NativeSetClassTypeToNullOnSchedule]
+        private DisposeSentinel _disposeSentinel;
+        private AtomicSafetyHandle _safety;
+#endif
 
         public PtrHandle(Allocator alloc)
         {
@@ -22,6 +29,10 @@ namespace NativeStringCollections.Utility
             _alloc = alloc;
             _ptr = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>(), UnsafeUtility.AlignOf<T>(), _alloc);
             _isCreated = true;
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            DisposeSentinel.Create(out _safety, out _disposeSentinel, 0, _alloc);
+#endif
         }
         public PtrHandle(T value, Allocator alloc)
         {
@@ -33,20 +44,22 @@ namespace NativeStringCollections.Utility
             _isCreated = true;
 
             *_ptr = value;
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            DisposeSentinel.Create(out _safety, out _disposeSentinel, 0, _alloc);
+#endif
         }
 
         public Boolean IsCreated { get { return (_isCreated); } }
-
-        public void Create()
-        {
-            _ptr = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>(), UnsafeUtility.AlignOf<T>(), _alloc);
-            _isCreated = true;
-        }
 
         public void Dispose()
         {
             if (IsCreated)
             {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                DisposeSentinel.Dispose(ref _safety, ref _disposeSentinel);
+#endif
+
                 this.CheckAllocator();
                 UnsafeUtility.Free((void*)_ptr, _alloc);
                 _ptr = null;
@@ -62,7 +75,7 @@ namespace NativeStringCollections.Utility
         {
             get
             {
-                if (!_isCreated) throw new InvalidOperationException("target is not allocated. call Create().");
+                if (!_isCreated) throw new InvalidOperationException("target is not allocated.");
                 return _ptr;
             }
         }
