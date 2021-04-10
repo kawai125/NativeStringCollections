@@ -6,10 +6,9 @@ The toolset to parse generic text files using C# JobSystem on Unity.
 ## Environment
 This library was tested in the below system.
 
-- software
-  - Windows10 20H2 19042.804
-  - Unity 2019.4.20f1
-    - Collections 0.9.0-preview.6
+- Windows10 20H2 19042.804
+- Unity 2019.4.20f1
+  - Collections 0.9.0-preview.6
 
 
 ## Demo scene
@@ -37,6 +36,43 @@ where T : class, ITextFileParser, new()
 
 These classes can accept `class System.Text.Encoding` to decode byte stream into chars.
 
+The `ITextFileParser` is defined as below.
+
+```C#
+namespace NativeStringCollections
+{
+    public interface ITextFileParser
+    {
+        /// <summary>
+        /// called once at the first in main thread (you can use managed object in this function).
+        /// </summary>
+        void Init();
+
+        /// <summary>
+        /// called every time at first on reading file.
+        /// </summary>
+        void Clear();
+
+        /// <summary>
+        /// when you returned 'false', the AsyncTextFileLoader discontinue calling the 'ParseLine()' and jump to calling 'PostReadProc()'.
+        /// </summary>
+        /// <param name="line">the string of a line.</param>
+        /// <returns>continue reading lines or not.</returns>
+        bool ParseLine(ReadOnlyStringEntity line);
+
+        /// <summary>
+        /// called every time at last on reading file.
+        /// </summary>
+        void PostReadProc();
+
+        /// <summary>
+        /// called when the AsyncTextFileLoader.UnLoadFile(index) function was called.
+        /// </summary>
+        void UnLoad();
+    }
+}
+```
+
 - string like NativeContainer
 
 ```C#
@@ -48,7 +84,7 @@ struct ReadOnlyStringEntity
 The `NativeStringList` is a jagged array container similar to `List<string>`, using `NativeList<char>` internally.  
 `StringEntity` and `ReadOnlyStringEntity` are the slice view of `NativeStringList`.
 
-**Note:** Because of reallocation of internal buffer, after calling `NativeStringList.Add()` function makes `StringEntity` to invalid reference.  
+**Note:** Because of reallocation of internal buffer, calling `NativeStringList.Add()` function makes `StringEntity` to invalid reference.  
 (The tracer system is also implemented on the macro "ENABLE_UNITY_COLLECTIONS_CHECKS".)
 
 - parse functions
@@ -97,6 +133,23 @@ StringEntity slice_result = StringEntity.Slice(begin, end);
 
 These modification functions are available.
 These functions generate `StringEntity` as new slice.
+
+- debug mode
+
+```C#
+var reader = new AsyncTextFileReader<T>(Allocator.Persistent);
+var loader = new AsyncTextFileLoader<T>(Allocator.Persistent);
+
+reader.LoadFileInMainThread(path);
+
+loader.AddFile(new List<string>{path_1, path_2, path_3});
+loader.LoadFileInMainThread(0);  // index = 0: load path_1.
+```
+
+When use the function `LoadFileInMainThread()`, all functions are processed in the main thread.
+
+In this condition, managed objects such as `(obj).ToString()`, `StringBuilder`, and `Debug.Log()` can be used
+in `Clear()`, `ParseLine()`, `PostReadProc()`, and `UnLoad()` functions of `ITextFileParser`.
 
 ## Limitation
 When Loading 2 files or more in same timing using `AsyncTextFileLoader<T>`, that causes laoding files with large delay.  
