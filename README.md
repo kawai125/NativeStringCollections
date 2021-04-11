@@ -1,7 +1,8 @@
 # NativeStringCollections
 
 ## Introduction
-The toolset to parse generic text files using C# JobSystem on Unity.
+The toolset to parse generic text files using C# JobSystem on Unity.  
+[解説記事(日本語)はこちら](https://qiita.com/kawai125/items/13390f25700dd89c0f2e)
 
 ## Environment
 This library was tested in the below system.
