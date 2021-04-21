@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Text;
 
+using UnityEngine;
+
 using Unity.Jobs;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Burst;
 
 
 namespace NativeStringCollections
@@ -59,14 +62,17 @@ namespace NativeStringCollections
 
             public Boolean allocated;
             public Boolean disposeHandle;
+            public Boolean enableBurst;
 
             public JobHandle jobHandle;
         }
+
         internal unsafe struct ParseJob<Tdata> : IJob, IDisposable
             where Tdata : class, ITextFileParser
         {
             private AsyncByteReader _byteReader;
-            private TextDecoder _decoder;
+            private GCHandle<Decoder> _decoder;
+            private ParseLinesWorker _worker;
 
             private NativeStringList _lines;
 
@@ -77,10 +83,10 @@ namespace NativeStringCollections
             private GCHandle<System.Diagnostics.Stopwatch> _timer;
             private float _timer_ms_coef;
 
-            public ParseJob(Allocator alloc)
+            public ParseJob(Allocator alloc, bool enableBurst = true)
             {
                 _byteReader = new AsyncByteReader(alloc);
-                _decoder = new TextDecoder(alloc);
+                _worker = new ParseLinesWorker(alloc);
 
                 _lines = new NativeStringList(alloc);
 
@@ -95,6 +101,7 @@ namespace NativeStringCollections
 
                 _info.Target->allocated = true;
                 _info.Target->disposeHandle = false;
+                _info.Target->enableBurst = enableBurst;
 
                 _info.Target->jobHandle = new JobHandle();
 
@@ -117,7 +124,7 @@ namespace NativeStringCollections
                     if (_info.Target->allocated)
                     {
                         _byteReader.Dispose();
-                        _decoder.Dispose();
+                        _worker.Dispose();
 
                         _lines.Dispose();
 
@@ -130,7 +137,7 @@ namespace NativeStringCollections
             {
                 if (_info.Target->disposeHandle)
                 {
-                    _decoder.ReleaseDecoder();
+                    _decoder.Dispose();
 
                     _data.Dispose();
                     _timer.Dispose();
@@ -142,6 +149,11 @@ namespace NativeStringCollections
             {
                 get { return _info.Target->decodeBlockSize; }
                 set { if (value >= Define.MinDecodeBlock) _info.Target->decodeBlockSize = value; }
+            }
+            public bool EnableBurst
+            {
+                get { return _info.Target->enableBurst; }
+                set { _info.Target->enableBurst = value; }
             }
             public JobHandle ReadFileAsync(string path, Encoding encoding, Tdata data, PtrHandle<ReadStateImpl> state_ptr)
             {
@@ -164,7 +176,8 @@ namespace NativeStringCollections
             {
                 this.DisposeHandle();
 
-                _decoder.SetEncoding(encoding);
+                _decoder.Create(encoding.GetDecoder());
+                _worker.SetPreamble(encoding.GetPreamble());
 
                 _data.Create(data);
                 _state_ptr = state_ptr;
@@ -224,7 +237,8 @@ namespace NativeStringCollections
             }
             private void ParseText()
             {
-                _decoder.Clear();
+                _decoder.Target.Reset();
+                _worker.Clear();
                 _data.Target.Clear();
 
                 Boolean continue_flag = true;
@@ -232,17 +246,9 @@ namespace NativeStringCollections
                 {
                     _lines.Clear();
                     this.ParseLinesFromBuffer();
-                    for (int i = 0; i < _lines.Length; i++)
-                    {
-                        var str = _lines[i];
-                        continue_flag = _data.Target.ParseLine(str.GetReadOnly());
 
-                        // abort
-                        if (!continue_flag)
-                        {
-                            return;
-                        }
-                    }
+                    continue_flag = _data.Target.ParseLines(_lines);
+                    if (!continue_flag) return;
 
                     _state_ptr.Target->Read = pos;
                 }
@@ -257,18 +263,29 @@ namespace NativeStringCollections
                 int byte_len = Math.Min(_info.Target->decodeBlockSize, decode_len);
 
                 byte* byte_ptr = (byte*)_byteReader.GetUnsafePtr() + byte_pos;
-                _decoder.GetLines(ref _lines, byte_ptr, byte_len);
+                _worker.DecodeTextIntoBuffer(byte_ptr, byte_len, _decoder);
+
+                // parse lines from buffer
+                if (_info.Target->enableBurst)
+                {
+                    LineParserBurst.GetLines(_worker, _lines); // with Burst version
+                }
+                else
+                {
+                    _worker.GetLines(_lines);  // without Burst version
+                }
 
                 _info.Target->blockPos++;
 
+                // termination of file
                 if (_info.Target->blockPos == _info.Target->blockNum)
                 {
-                    if (!_decoder.IsEmpty)
+                    if (!_worker.IsEmpty)
                     {
-                        using (var buff = new NativeList<char>(Allocator.Temp))
+                        using (var buff = new NativeList<Char16>(Allocator.Temp))
                         {
-                            _decoder.GetInternalBuffer(buff);
-                            _lines.Add((char*)buff.GetUnsafePtr(), buff.Length);
+                            _worker.GetInternalBuffer(buff);
+                            _lines.Add((Char16*)buff.GetUnsafePtr(), buff.Length);
                         }
                     }
                 }

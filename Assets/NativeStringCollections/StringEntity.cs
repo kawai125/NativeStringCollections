@@ -25,26 +25,30 @@ namespace NativeStringCollections
 
     public unsafe readonly struct StringEntity :
         IParseExt,
-        IJaggedArraySliceBase<char>,
+        IJaggedArraySliceBase<Char16>,
         ISlice<StringEntity>,
-        IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
-        IEnumerable<char>
+        IEnumerable<Char16>,
+        IEquatable<StringEntity>,
+        IEquatable<ReadOnlyStringEntity>,
+        IEquatable<Char16[]>, IEquatable<IEnumerable<Char16>>, IEquatable<Char16>,
+        IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
+        IEquatable<string>
     {
         [NativeDisableUnsafePtrRestriction]
-        private readonly char* _ptr;
-        private readonly int _len;
+        internal readonly Char16* _ptr;
+        internal readonly int _len;
 
         public int Length { get { return _len; } }
 
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
         [NativeDisableUnsafePtrRestriction]
-        private readonly long* _gen_ptr;
-        private readonly long _gen_entity;
+        internal readonly long* _gen_ptr;
+        internal readonly long _gen_entity;
 #endif
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-        public StringEntity(char* ptr, int Length, long* gen_ptr, long gen_entity)
+        public StringEntity(Char16* ptr, int Length, long* gen_ptr, long gen_entity)
         {
             _ptr = ptr;
             _len = Length;
@@ -53,13 +57,13 @@ namespace NativeStringCollections
             _gen_entity = gen_entity;
         }
 #else
-        public StringEntity(char* ptr, int Length)
+        public StringEntity(Char16* ptr, int Length)
         {
             _ptr = ptr;
             _len = Length;
         }
 #endif
-        public StringEntity(NativeJaggedArraySlice<char> slice)
+        public StringEntity(NativeJaggedArraySlice<Char16> slice)
         {
             _ptr = slice._ptr;
             _len = slice._len;
@@ -74,7 +78,7 @@ namespace NativeStringCollections
             this = entity;
         }
 
-        public char this[int index]
+        public Char16 this[int index]
         {
             get
             {
@@ -88,7 +92,7 @@ namespace NativeStringCollections
                 *(_ptr + index) = value;
             }
         }
-        public char At(int index)
+        public Char16 At(int index)
         {
             this.CheckReallocate();
             this.CheckElemIndex(index);
@@ -111,7 +115,7 @@ namespace NativeStringCollections
 #endif
         }
 
-        public IEnumerator<char> GetEnumerator()
+        public IEnumerator<Char16> GetEnumerator()
         {
             this.CheckReallocate();
             for (int i = 0; i < this.Length; i++)
@@ -124,7 +128,7 @@ namespace NativeStringCollections
             return val.GetReadOnly();
         }
 
-        public bool Equals(char* ptr, int Length)
+        public bool Equals(Char16* ptr, int Length)
         {
             this.CheckReallocate();
             if (_len != Length) return false;
@@ -149,44 +153,88 @@ namespace NativeStringCollections
             this.CheckReallocate();
             return entity.Equals(_ptr, _len);
         }
-        public bool Equals(NativeJaggedArraySlice<char> slice)
+        public bool Equals(NativeJaggedArraySlice<Char16> slice)
         {
             this.CheckReallocate();
             return slice.Equals(_ptr, _len);
         }
-        public bool Equals(ReadOnlyNativeJaggedArraySlice<char> slice)
+        public bool Equals(ReadOnlyNativeJaggedArraySlice<Char16> slice)
         {
             this.CheckReallocate();
             return slice.Equals(_ptr, _len);
         }
-        public bool Equals(string str)
+        public bool Equals(Char16[] c_arr)
         {
-            if (this.Length != str.Length) return false;
-            return this.SequenceEqual<char>(str);
+            this.CheckReallocate();
+            if (this.Length != c_arr.Length) return false;
+            return this.SequenceEqual<Char16>(c_arr);
+        }
+        public bool Equals(Char16 c)
+        {
+            this.CheckReallocate();
+            return (this.Length == 1 && this[0] == c);
+        }
+        public bool Equals(IEnumerable<Char16> in_itr)
+        {
+            this.CheckReallocate();
+            return this.SequenceEqual<Char16>(in_itr);
         }
         public bool Equals(char[] c_arr)
         {
+            this.CheckReallocate();
             if (this.Length != c_arr.Length) return false;
-            return this.SequenceEqual<char>(c_arr);
+            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(this);
+            return tmp.SequenceEqual<char>(c_arr);
         }
         public bool Equals(char c)
         {
+            this.CheckReallocate();
             return (this.Length == 1 && this[0] == c);
         }
         public bool Equals(IEnumerable<char> in_itr)
         {
             this.CheckReallocate();
-            return this.SequenceEqual<char>(in_itr);
+            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(this);
+            return tmp.SequenceEqual<char>(in_itr);
+        }
+        public bool Equals(string str)
+        {
+            this.CheckReallocate();
+            if (this.Length != str.Length) return false;
+            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(this);
+            return tmp.SequenceEqual<char>(str);
         }
         public static bool operator ==(StringEntity lhs, StringEntity rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(StringEntity lhs, StringEntity rhs) { return !lhs.Equals(rhs); }
         public static bool operator ==(StringEntity lhs, ReadOnlyStringEntity rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(StringEntity lhs, ReadOnlyStringEntity rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(StringEntity lhs, IEnumerable<Char16> rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(StringEntity lhs, IEnumerable<Char16> rhs) { return !lhs.Equals(rhs); }
         public static bool operator ==(StringEntity lhs, IEnumerable<char> rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(StringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(StringEntity lhs, Char16[] rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(StringEntity lhs, Char16[] rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(StringEntity lhs, char[] rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(StringEntity lhs, char[] rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(StringEntity lhs, Char16 rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(StringEntity lhs, Char16 rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(StringEntity lhs, char rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(StringEntity lhs, char rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(IEnumerable<Char16> lhs, StringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(IEnumerable<Char16> lhs, StringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(IEnumerable<char> lhs, StringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(IEnumerable<char> lhs, StringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(Char16[] lhs, StringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(Char16[] lhs, StringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(char[] lhs, StringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(char[] lhs, StringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(Char16 lhs, StringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(Char16 lhs, StringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(char lhs, StringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(char lhs, StringEntity rhs) { return !rhs.Equals(lhs); }
         public override bool Equals(object obj)
         {
-            return obj is StringEntity && ((IJaggedArraySliceBase<char>)obj).Equals(_ptr, _len);
+            return obj is StringEntity && ((IJaggedArraySliceBase<Char16>)obj).Equals(_ptr, _len);
         }
         public override int GetHashCode()
         {
@@ -199,6 +247,57 @@ namespace NativeStringCollections
             return hash;
         }
 
+        public int IndexOf(Char16 key, int start = 0)
+        {
+            this.CheckReallocate();
+            this.CheckElemIndex(start);
+
+            for (int i = start; i < _len; i++)
+            {
+                if (_ptr[i].Equals(key)) return i;
+            }
+            return -1;
+        }
+        public unsafe int IndexOf<T>(T slice, int start = 0)
+            where T : IJaggedArraySliceBase<Char16>
+        {
+            return this.IndexOfSliceImpl((Char16*)slice.GetUnsafePtr(), slice.Length, start);
+        }
+        public unsafe int IndexOf(string str, int start = 0)
+        {
+            fixed(char* p = str)
+            {
+                return this.IndexOfSliceImpl((Char16*)p, str.Length, start);
+            }
+        }
+        private unsafe int IndexOfSliceImpl(Char16* tgt_ptr, int tgt_len, int start)
+        {
+            this.CheckReallocate();
+            this.CheckElemIndex(start);
+
+            if (tgt_len > _len - start) return -1;
+            if (tgt_len <= 0) return -1;
+
+            for (int i = start; i < _len - (tgt_len - 1); i++)
+            {
+                if (_ptr[i].Equals(tgt_ptr[0]))
+                {
+                    bool is_match = true;
+                    for (int j = 1; j < tgt_len; j++)
+                    {
+                        if (!_ptr[i + j].Equals(tgt_ptr[j]))
+                        {
+                            is_match = false;
+                            break;
+                        }
+                    }
+
+                    if (is_match) return i;
+                }
+            }
+            return -1;
+        }
+
         public ReadOnlyStringEntity GetReadOnly()
         {
             return new ReadOnlyStringEntity(this);
@@ -207,7 +306,7 @@ namespace NativeStringCollections
         public override string ToString()
         {
             this.CheckReallocate();
-            return new string(_ptr, 0, _len);
+            return new string((char*)_ptr, 0, _len);
         }
         public char[] ToArray()
         {
@@ -219,11 +318,11 @@ namespace NativeStringCollections
             }
             return ret;
         }
-        public NativeArray<char> ToNativeArray(Allocator alloc)
+        public NativeArray<Char16> ToNativeArray(Allocator alloc)
         {
             this.CheckReallocate();
-            var ret = new NativeArray<char>(_len, alloc);
-            UnsafeUtility.MemCpy(ret.GetUnsafePtr(), this.GetUnsafePtr(), UnsafeUtility.SizeOf<char>() * _len);
+            var ret = new NativeArray<Char16>(_len, alloc);
+            UnsafeUtility.MemCpy(ret.GetUnsafePtr(), this.GetUnsafePtr(), UnsafeUtility.SizeOf<Char16>() * _len);
             return ret;
         }
 
@@ -260,16 +359,20 @@ namespace NativeStringCollections
 
     public readonly unsafe struct ReadOnlyStringEntity :
         IParseExt,
-        IJaggedArraySliceBase<char>,
+        IJaggedArraySliceBase<Char16>,
         ISlice<ReadOnlyStringEntity>,
-        IEquatable<string>, IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
-        IEnumerable<char>
+        IEnumerable<Char16>,
+        IEquatable<StringEntity>,
+        IEquatable<ReadOnlyStringEntity>,
+        IEquatable<Char16[]>, IEquatable<IEnumerable<Char16>>, IEquatable<Char16>,
+        IEquatable<char[]>, IEquatable<IEnumerable<char>>, IEquatable<char>,
+        IEquatable<string>
     {
         private readonly StringEntity _entity;
 
         public int Length { get { return _entity.Length; } }
 
-        public ReadOnlyStringEntity(NativeJaggedArraySlice<char> slice)
+        public ReadOnlyStringEntity(NativeJaggedArraySlice<Char16> slice)
         {
             _entity = new StringEntity(slice);
         }
@@ -278,52 +381,61 @@ namespace NativeStringCollections
             _entity = entity;
         }
 
-        public char this[int index]
+        public Char16 this[int index]
         {
             get { return _entity[index]; }
         }
-        public char At(int index) { return _entity.At(index); }
+        public Char16 At(int index) { return _entity.At(index); }
         public ReadOnlyStringEntity Slice(int begin = -1, int end = -1)
         {
             return new ReadOnlyStringEntity(_entity.Slice(begin, end));
         }
 
-        public IEnumerator<char> GetEnumerator()
+        public IEnumerator<Char16> GetEnumerator()
         {
             for (int i = 0; i < this.Length; i++)
                 yield return this[i];
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public bool Equals(char* ptr, int Length)
+        public bool Equals(Char16* ptr, int Length)
         {
             return _entity.Equals(ptr, Length);
         }
-        public unsafe bool Equals(NativeJaggedArraySlice<char> slice)
+        public unsafe bool Equals(NativeJaggedArraySlice<Char16> slice)
         {
             return _entity.Equals(slice);
         }
-        public unsafe bool Equals(ReadOnlyNativeJaggedArraySlice<char> slice)
+        public unsafe bool Equals(ReadOnlyNativeJaggedArraySlice<Char16> slice)
         {
             return _entity.Equals(slice);
         }
         public bool Equals(StringEntity entity)
         {
-            return entity.Equals((char*)_entity.GetUnsafePtr(), _entity.Length);
+            return entity.Equals((Char16*)_entity.GetUnsafePtr(), _entity.Length);
         }
         public bool Equals(ReadOnlyStringEntity entity)
         {
-            return entity.Equals((char*)_entity.GetUnsafePtr(), _entity.Length);
+            return entity.Equals((Char16*)_entity.GetUnsafePtr(), _entity.Length);
         }
-        public bool Equals(string str)
+        public bool Equals(Char16[] c_arr)
         {
-            if (_entity.Length != str.Length) return false;
-            return this.SequenceEqual<char>(str);
+            if (this.Length != c_arr.Length) return false;
+            return this.SequenceEqual<Char16>(c_arr);
+        }
+        public bool Equals(Char16 c)
+        {
+            return (this.Length == 1 && this[0] == c);
+        }
+        public bool Equals(IEnumerable<Char16> in_itr)
+        {
+            return this.SequenceEqual<Char16>(in_itr);
         }
         public bool Equals(char[] c_arr)
         {
             if (_entity.Length != c_arr.Length) return false;
-            return this.SequenceEqual<char>(c_arr);
+            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(_entity);
+            return tmp.SequenceEqual<char>(c_arr);
         }
         public bool Equals(char c)
         {
@@ -331,14 +443,43 @@ namespace NativeStringCollections
         }
         public bool Equals(IEnumerable<char> str_itr)
         {
-            return this.SequenceEqual<char>(str_itr);
+            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(_entity);
+            return tmp.SequenceEqual<char>(str_itr);
+        }
+        public bool Equals(string str)
+        {
+            if (_entity.Length != str.Length) return false;
+            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(_entity);
+            return tmp.SequenceEqual<char>(str);
         }
         public static bool operator ==(ReadOnlyStringEntity lhs, StringEntity rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(ReadOnlyStringEntity lhs, StringEntity rhs) { return !lhs.Equals(rhs); }
         public static bool operator ==(ReadOnlyStringEntity lhs, ReadOnlyStringEntity rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(ReadOnlyStringEntity lhs, ReadOnlyStringEntity rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(ReadOnlyStringEntity lhs, IEnumerable<Char16> rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, IEnumerable<Char16> rhs) { return !lhs.Equals(rhs); }
         public static bool operator ==(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(ReadOnlyStringEntity lhs, IEnumerable<char> rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(ReadOnlyStringEntity lhs, Char16[] rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, Char16[] rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(ReadOnlyStringEntity lhs, char[] rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, char[] rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(ReadOnlyStringEntity lhs, Char16 rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, Char16 rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(ReadOnlyStringEntity lhs, char rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(ReadOnlyStringEntity lhs, char rhs) { return !lhs.Equals(rhs); }
+        public static bool operator ==(IEnumerable<Char16> lhs, ReadOnlyStringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(IEnumerable<Char16> lhs, ReadOnlyStringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(IEnumerable<char> lhs, ReadOnlyStringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(IEnumerable<char> lhs, ReadOnlyStringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(Char16[] lhs, ReadOnlyStringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(Char16[] lhs, ReadOnlyStringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(char[] lhs, ReadOnlyStringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(char[] lhs, ReadOnlyStringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(Char16 lhs, ReadOnlyStringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(Char16 lhs, ReadOnlyStringEntity rhs) { return !rhs.Equals(lhs); }
+        public static bool operator ==(char lhs, ReadOnlyStringEntity rhs) { return rhs.Equals(lhs); }
+        public static bool operator !=(char lhs, ReadOnlyStringEntity rhs) { return !rhs.Equals(lhs); }
         public override bool Equals(object obj)
         {
             return obj is IJaggedArraySliceBase<char> && ((IJaggedArraySliceBase<char>)obj).Equals((char*)_entity.GetUnsafePtr(), _entity.Length);
@@ -346,6 +487,17 @@ namespace NativeStringCollections
         public override int GetHashCode()
         {
             return _entity.GetHashCode();
+        }
+
+        public int IndexOf(Char16 key, int start = 0) { return _entity.IndexOf(key, start); }
+        public int IndexOf<T>(T key, int start = 0)
+            where T : IJaggedArraySliceBase<Char16>
+        {
+            return _entity.IndexOf(key, start);
+        }
+        public int IndexOf(string str, int start = 0)
+        {
+            return _entity.IndexOf(str, start);
         }
 
         public override string ToString()
@@ -356,7 +508,7 @@ namespace NativeStringCollections
         {
             return _entity.ToArray();
         }
-        public NativeArray<char> ToNativeArray(Allocator alloc)
+        public NativeArray<Char16> ToNativeArray(Allocator alloc)
         {
             return _entity.ToNativeArray(alloc);
         }
@@ -376,6 +528,16 @@ namespace NativeStringCollections
             /// <returns></returns>
             public unsafe static StringEntity ToStringEntity(this NativeList<char> source)
             {
+                return new StringEntity(CharSliceCastToStringEntity(source.ToNativeJaggedArraySlice()));
+            }
+            /// <summary>
+            /// StringEntity generator for NativeList.
+            /// it is not guaranteed the referenced data after something modify of source NativeList.
+            /// </summary>
+            /// <param name="source"></param>
+            /// <returns></returns>
+            public unsafe static StringEntity ToStringEntity(this NativeList<Char16> source)
+            {
                 return new StringEntity(source.ToNativeJaggedArraySlice());
             }
             /// <summary>
@@ -386,7 +548,36 @@ namespace NativeStringCollections
             /// <returns></returns>
             public unsafe static StringEntity ToStringEntity(this NativeArray<char> source)
             {
+                var tmp = source.ToNativeJaggedArraySlice();
+                return new StringEntity(CharSliceCastToStringEntity(source.ToNativeJaggedArraySlice()));
+            }
+            /// <summary>
+            /// StringEntity generator for NativeList.
+            /// it is not guaranteed the referenced data after something modify of source NativeList.
+            /// </summary>
+            /// <param name="source"></param>
+            /// <returns></returns>
+            public unsafe static StringEntity ToStringEntity(this NativeArray<Char16> source)
+            {
+                var tmp = source.ToNativeJaggedArraySlice();
                 return new StringEntity(source.ToNativeJaggedArraySlice());
+            }
+
+            internal unsafe static NativeJaggedArraySlice<char> StringEntityCastToCharSlice(StringEntity se)
+            {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                return new NativeJaggedArraySlice<char>((char*)se._ptr, se._len, se._gen_ptr, se._gen_entity);
+#else
+                return new NativeJaggedArraySlice<char>((char*)se._ptr, se._len);
+#endif
+            }
+            internal unsafe static StringEntity CharSliceCastToStringEntity(NativeJaggedArraySlice<char> slice)
+            {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                return new StringEntity((Char16*)slice._ptr, slice._len, slice._gen_ptr, slice._gen_entity);
+#else
+                return new StringEntity((Char16*)slice._ptr, slice._len);
+#endif
             }
         }
     }

@@ -28,11 +28,12 @@ namespace NativeStringCollections
         void Clear();
 
         /// <summary>
-        /// when you returned 'false', the AsyncTextFileLoader discontinue calling the 'ParseLine()' and jump to calling 'PostReadProc()'.
+        /// when you returned 'false', the AsyncTextFileLoader discontinue calling the 'ParseLines()'
+        /// and jump to calling 'PostReadProc()'.
         /// </summary>
-        /// <param name="line">the string of a line.</param>
+        /// <param name="lines"></param>
         /// <returns>continue reading lines or not.</returns>
-        bool ParseLine(ReadOnlyStringEntity line);
+        bool ParseLines(NativeStringList lines);
 
         /// <summary>
         /// called every time at last on reading file.
@@ -161,6 +162,15 @@ namespace NativeStringCollections
             }
         }
 
+        /// <summary>
+        /// Use or not BurstCompile for parsing lines internally (default = true).
+        /// </summary>
+        public bool EnableBurst
+        {
+            get { return _parser.EnableBurst; }
+            set { _parser.EnableBurst = value; }
+        }
+
         public unsafe ReadState GetState { get { return _state.Target->GetState(); } }
 
         public JobHandle LoadFile() { return this.LoadFile(Path); }
@@ -221,6 +231,7 @@ namespace NativeStringCollections
         private Encoding _encoding;
 
         private Allocator _alloc;
+        private bool _enableBurst;
         private Dictionary<int, ParseJob<T>> _parserPool;
         private int _gen;
 
@@ -273,6 +284,8 @@ namespace NativeStringCollections
         public AsyncTextFileLoader(Allocator alloc)
         {
             _alloc = alloc;
+            _enableBurst = true;
+
             _pathList = new List<string>();
 
             _blockSize = Define.DefaultDecodeBlock;
@@ -366,6 +379,15 @@ namespace NativeStringCollections
         public int LoadWaitingQueue { get { return _loadWaitingQueueNum; } }
         public bool FlushLoadJobs { get; set; }
 
+        /// <summary>
+        /// Use or not BurstCompile for parsing lines internally (default = true).
+        /// </summary>
+        public bool EnableBurst
+        {
+            get { return _enableBurst; }
+            set { _enableBurst = value; }
+        }
+
         public unsafe void AddFile(string str)
         {
             _pathList.Add(str);
@@ -390,7 +412,7 @@ namespace NativeStringCollections
                 return list;
             }
         }
-        public string GetFile(int index)
+        public string GetFilePath(int index)
         {
             return _pathList[index];
         }
@@ -602,7 +624,11 @@ namespace NativeStringCollections
                 int p_id = _parserAvail.Dequeue();
                 var p_tmp = _parserPool[p_id];
                 var p_state = _state[file_index];
+
+                // update parser settings
                 p_tmp.BlockSize = _blockSize;
+                p_tmp.EnableBurst = _enableBurst;
+
                 p_tmp.ReadFileAsync(_pathList[file_index], _encoding, _data[file_index], p_state);
                 _runningJob.Add(new RunningJobInfo(file_index, p_id));
 #if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
@@ -645,7 +671,7 @@ namespace NativeStringCollections
 
                 if (!_parserPool.ContainsKey(_gen))
                 {
-                    var p_tmp = new ParseJob<T>(_alloc);
+                    var p_tmp = new ParseJob<T>(_alloc, _enableBurst);
                     _parserPool.Add(_gen, p_tmp);
                     _parserAvail.Enqueue(_gen);
                     return;
@@ -694,7 +720,7 @@ namespace NativeStringCollections
 
             if(p_state.Target->RefCount == 0)
             {
-                var p_tmp = new ParseJob<T>(_alloc);
+                var p_tmp = new ParseJob<T>(_alloc, _enableBurst);
                 p_tmp.BlockSize = _blockSize;
                 p_tmp.ReadFileInMainThread(_pathList[file_index], _encoding, _data[file_index], p_state);
                 p_tmp.Dispose();

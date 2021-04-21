@@ -22,7 +22,8 @@ namespace NativeStringCollections
         private string _path;
 
         private Encoding _encoding;
-        private TextDecoder _decoder;
+        private ParseLinesWorker _worker;
+        private Decoder _decoder;
 
         private NativeStringList _lines;
 
@@ -38,7 +39,7 @@ namespace NativeStringCollections
         {
             _byteBuffer = new byte[Define.DefaultBufferSize];
 
-            _decoder = new TextDecoder(alloc);
+            _worker = new ParseLinesWorker(alloc);
             _lines = new NativeStringList(alloc);
 
             _allocated = true;
@@ -54,7 +55,7 @@ namespace NativeStringCollections
             }
             if (_allocated)
             {
-                _decoder.Dispose();
+                _worker.Dispose();
                 _lines.Dispose();
             }
         }
@@ -89,7 +90,7 @@ namespace NativeStringCollections
             _fileStream = new FileStream(_path, FileMode.Open, FileAccess.Read);
             _disposeStream = true;
 
-            _decoder.Clear();
+            _worker.Clear();
         }
 
         public Encoding Encoding
@@ -98,13 +99,14 @@ namespace NativeStringCollections
             set
             {
                 _encoding = value;
-                _decoder.SetEncoding(_encoding);
+                _decoder = _encoding.GetDecoder();
+                _worker.SetPreamble(_encoding.GetPreamble());
             }
         }
 
         public int Length { get { return _blockNum; } }
         public int Pos { get { return _blockPos; } }
-        public bool EndOfStream { get { return (_blockPos == _blockNum && _decoder.IsEmpty && _lines.Length == 0); } }
+        public bool EndOfStream { get { return (_blockPos == _blockNum && _worker.IsEmpty && _lines.Length == 0); } }
 
 
         private void ReadStream()
@@ -151,12 +153,16 @@ namespace NativeStringCollections
             _lines.Clear();
             while (line_count < max_lines)
             {
-                if (_blockPos < _blockNum && _decoder.IsEmpty)
+                if (_blockPos < _blockNum && _worker.IsEmpty)
                 {
                     this.ReadStream();
                     fixed(byte* byte_ptr = _byteBuffer)
                     {
-                        _decoder.GetLines(ref _lines, byte_ptr, _byteLength);
+                        var handle = new GCHandle<Decoder>();
+                        handle.Create(_decoder);
+                        _worker.DecodeTextIntoBuffer(byte_ptr, _byteLength, handle);
+                        handle.Dispose();
+                        _worker.GetLines(_lines);
                     }
                 }
 
@@ -166,10 +172,10 @@ namespace NativeStringCollections
                 if (_blockPos == _blockNum)
                 {
                     // if final part do not have LF.
-                    if (!_decoder.IsEmpty)
+                    if (!_worker.IsEmpty)
                     {
-                        var buff = new NativeList<char>(Allocator.Temp);
-                        _decoder.GetInternalBuffer(buff);
+                        var buff = new NativeList<Char16>(Allocator.Temp);
+                        _worker.GetInternalBuffer(buff);
                         result.AddResult((char*)buff.GetUnsafePtr(), buff.Length);
                         buff.Dispose();
                     }
@@ -218,7 +224,11 @@ namespace NativeStringCollections
                 this.ReadStream();
                 fixed (byte* byte_ptr = _byteBuffer)
                 {
-                    _decoder.GetLines(ref _lines, byte_ptr, _byteLength);
+                    var handle = new GCHandle<Decoder>();
+                    handle.Create(_decoder);
+                    _worker.DecodeTextIntoBuffer(byte_ptr, _byteLength, handle);
+                    handle.Dispose();
+                    _worker.GetLines(_lines);
                 }
             }
 
@@ -229,11 +239,11 @@ namespace NativeStringCollections
             if (_blockPos == _blockNum)
             {
                 // if final part do not have LF.
-                if (!_decoder.IsEmpty)
+                if (!_worker.IsEmpty)
                 {
-                    using (var buff = new NativeList<char>(Allocator.Temp))
+                    using (var buff = new NativeList<Char16>(Allocator.Temp))
                     {
-                        _decoder.GetInternalBuffer(buff);
+                        _worker.GetInternalBuffer(buff);
                         result.Add((char*)buff.GetUnsafePtr(), buff.Length);
                     }
                 }
@@ -241,19 +251,26 @@ namespace NativeStringCollections
         }
         public unsafe void ReadBuffer(NativeList<char> result)
         {
+            var tmp_buff = new NativeList<Char16>(Allocator.Temp);
             if (_blockPos < _blockNum)
             {
                 this.ReadStream();
                 fixed (byte* byte_ptr = _byteBuffer)
                 {
-                    _decoder.GetChars(result, byte_ptr, _byteLength);
+                    var handle = new GCHandle<Decoder>();
+                    handle.Create(_decoder);
+                    _worker.DecodeTextIntoBuffer(byte_ptr, _byteLength, handle);
+                    handle.Dispose();
+                    _worker.GetChars(tmp_buff);
                 }
             }
 
-            if (!_decoder.IsEmpty)
+            if (!_worker.IsEmpty)
             {
-                _decoder.GetInternalBuffer(result);
+                _worker.GetInternalBuffer(tmp_buff);
             }
+            result.AddRange(tmp_buff.GetUnsafePtr(), tmp_buff.Length);
+            tmp_buff.Dispose();
         }
         public unsafe void ReadToEnd(NativeStringList result)
         {
@@ -264,9 +281,12 @@ namespace NativeStringCollections
         }
         public unsafe void ReadToEnd(NativeList<char> result)
         {
-            if (!_decoder.IsEmpty)
+            if (!_worker.IsEmpty)
             {
-                _decoder.GetInternalBuffer(result);
+                var tmp_buff = new NativeList<Char16>(Allocator.Temp);
+                _worker.GetInternalBuffer(tmp_buff);
+                result.AddRange(tmp_buff.GetUnsafePtr(), tmp_buff.Length);
+                tmp_buff.Dispose();
             }
             while (_blockPos < _blockNum)
             {

@@ -16,8 +16,8 @@ namespace NativeStringCollections.Demo
         public long ID;
         public StringEntity Name;
         public int HP, MP;
-        //public float Attack, Defence;
-        public int Attack, Defence;
+        public float Attack, Defence;
+        //public int Attack, Defence;
 
         public bool Equals(CharaData rhs)
         {
@@ -96,10 +96,10 @@ namespace NativeStringCollections.Demo
             tmp.Name = NSL.Last;
             tmp.HP = (int)id * 100;
             tmp.MP = (int)id * 50;
-            //tmp.Attack = vv * 4;
-            //tmp.Defence = vv * 3;
-            tmp.Attack = (int)id * 4;
-            tmp.Defence = (int)id * 3;
+            tmp.Attack = vv * 4;
+            tmp.Defence = vv * 3;
+            //tmp.Attack = (int)id * 4;
+            //tmp.Defence = (int)id * 3;
 
             return tmp;
         }
@@ -206,7 +206,7 @@ namespace NativeStringCollections.Demo
             id_Sequence.Clear();
             for (int id = 0; id < n; id++)
             {
-                id_Sequence.Add(id);
+                id_Sequence.Add(id * d);
             }
             //int n_swap = (int)Math.Sqrt(n);
             int n_swap = n;
@@ -235,10 +235,10 @@ namespace NativeStringCollections.Demo
             var byte_Sequence = new NativeArray<byte>(byte_len, Allocator.Persistent);
             UnsafeUtility.MemCpy(byte_Sequence.GetUnsafePtr(), id_Sequence.GetUnsafePtr(), byte_len);
 
-            var b64_Sequence = new NativeList<char>(Allocator.Persistent);
-            var b64_Encorder = new NativeBase64Encoder(Allocator.Persistent);
+            var b64_Sequence = new NativeList<Char16>(Allocator.Persistent);
+            var b64_Encoder = new NativeBase64Encoder(Allocator.Persistent);
 
-            b64_Encorder.GetChars(b64_Sequence, byte_Sequence);
+            b64_Encoder.GetChars(b64_Sequence, byte_Sequence);
             for(int i=0; i<b64_Sequence.Length; i++)
             {
                 sb.Append(b64_Sequence[i]);
@@ -251,7 +251,7 @@ namespace NativeStringCollections.Demo
 
             byte_Sequence.Dispose();
             b64_Sequence.Dispose();
-            b64_Encorder.Dispose();
+            b64_Encoder.Dispose();
 
             Debug.Log(" >> write body >> ");
 
@@ -279,7 +279,7 @@ namespace NativeStringCollections.Demo
                     if (random.NextDouble() > r)
                     {
                         NSL_tmp.Clear();
-                        int id = id_Sequence[i] * d;
+                        int id = id_Sequence[i];
                         var chara_tmp = CharaDataExt.Generate(id, NSL_tmp);
                         sb.Append(chara_tmp.ToString(_delim));
                         sb.Append(_lf);

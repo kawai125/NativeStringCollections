@@ -66,7 +66,15 @@ namespace NativeStringCollections.Demo
                     }
                     if(info.JobState == ReadJobState.Completed)
                     {
-                        timeText.text = $"lines: {loader[id].Lines}\ntime: {info.Delay.ToString("F2")} ms";
+                        var parser = loader[id];
+                        if(parser.ParserState == CharaDataParser.ReadMode.Complete)
+                        {
+                            timeText.text = $"lines: {loader[id].Lines}\ntime: {info.Delay.ToString("F2")} ms";
+                        }
+                        else
+                        {
+                            timeText.text = $"lines: {loader[id].Lines}\n{parser.ParserState}";
+                        }
                     }
                 }
 

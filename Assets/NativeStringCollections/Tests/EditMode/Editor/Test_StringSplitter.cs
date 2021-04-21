@@ -16,7 +16,7 @@ namespace Tests
     public class Test_StringSplitter
     {
         private string str_source;
-        private NativeList<char> NL_source;
+        private NativeList<Char16> NL_source;
         private StringEntity SE_source;
 
         private List<string> ref_list;
@@ -29,8 +29,8 @@ namespace Tests
         {
             this.str_source = " 1234567890@@0987654321^^ 1234567\t890 # ";
 
-            this.NL_source = new NativeList<char>(Allocator.TempJob);
-            foreach (char c in str_source)
+            this.NL_source = new NativeList<Char16>(Allocator.TempJob);
+            foreach (Char16 c in str_source)
             {
                 NL_source.Add(c);
             }
@@ -110,9 +110,9 @@ namespace Tests
         [Test]
         public void SplitByString()
         {
-            NativeList<char> NL_delim = new NativeList<char>(Allocator.TempJob);
+            NativeList<Char16> NL_delim = new NativeList<Char16>(Allocator.TempJob);
             string str_delim = "345";
-            foreach (char c in str_delim)
+            foreach (Char16 c in str_delim)
             {
                 NL_delim.Add(c);
             }
@@ -211,7 +211,7 @@ namespace Tests
             return check;
         }
         private bool CheckSplitterResult<T>(NativeList<T> result, List<string> ref_data)
-            where T : unmanaged, IJaggedArraySliceBase<char>, IEquatable<string>
+            where T : unmanaged, IJaggedArraySliceBase<Char16>, IEquatable<string>
         {
             var sb = new StringBuilder();
 

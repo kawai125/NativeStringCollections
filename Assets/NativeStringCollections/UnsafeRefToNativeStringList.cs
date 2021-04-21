@@ -5,27 +5,32 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
-namespace NativeStringCollections
+namespace NativeStringCollections.Utility
 {
-    using NativeStringCollections.Utility;
-    using NativeStringCollections.Impl;
-
-
-    public struct NativeStringList : IDisposable, IEnumerable<StringEntity>
+    public static class NativeStringListExt
     {
-        internal NativeJaggedArray<Char16> _jarr;
-
-        public unsafe NativeStringList(Allocator alloc)
+        public static UnsafeRefToNativeStringList GetUnsafeRef(this NativeStringList target)
         {
-            _jarr = new NativeJaggedArray<Char16>(alloc);
+            return new UnsafeRefToNativeStringList(target);
         }
+    }
 
-        public void Dispose()
+    /// <summary>
+    /// This unsafe reference disables the NativeContiner safety system.
+    /// Use only for passing reference to BurstCompiler.CompileFunctionPointer.
+    /// </summary>
+    public struct UnsafeRefToNativeStringList
+    {
+        private UnsafeRefToNativeJaggedArray<Char16> _jarr;
+
+        /// <summary>
+        /// Create the unsafe reference to NativeStringList.
+        /// </summary>
+        /// <param name="list"></param>
+        public UnsafeRefToNativeStringList(NativeStringList list)
         {
-            _jarr.Dispose();
+            _jarr = new UnsafeRefToNativeJaggedArray<Char16>(list._jarr);
         }
-
-        public bool IsCreated { get { return _jarr.IsCreated; } }
 
         public void Clear()
         {
@@ -57,42 +62,7 @@ namespace NativeStringCollections
         {
             get { return new StringEntity(_jarr.Last); }
         }
-        unsafe public string SubString(int index)
-        {
-            return this[index].ToString();
-        }
-        public IEnumerator<StringEntity> GetEnumerator()
-        {
-            for (int i = 0; i < this.Length; i++)
-                yield return this[i];
-        }
-        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public unsafe void Add(string str)
-        {
-            fixed (char* ptr = str)
-            {
-                this.Add(ptr, str.Length);
-            }
-        }
-        public unsafe void Add(char[] str)
-        {
-            fixed (char* ptr = str)
-            {
-                this.Add(ptr, str.Length);
-            }
-        }
-        public unsafe void Add(IEnumerable<char> str)
-        {
-            using (var tmp = new NativeList<char>(Allocator.TempJob))
-            {
-                foreach (char c in str)
-                {
-                    tmp.Add(c);
-                }
-                _jarr.Add((Char16*)tmp.GetUnsafePtr(), tmp.Length);
-            }
-        }
         public unsafe void Add(Char16* ptr, int Length)
         {
             _jarr.Add(ptr, Length);
@@ -101,10 +71,10 @@ namespace NativeStringCollections
         {
             _jarr.Add((Char16*)ptr, Length);
         }
-        public unsafe void Add<T>(T str)
+        public unsafe void Add<T>(T slice)
             where T : IJaggedArraySliceBase<Char16>
         {
-            _jarr.Add(str);
+            this.Add((Char16*)slice.GetUnsafePtr(), slice.Length);
         }
         /// <summary>
         /// specialize for StringEntity
@@ -122,46 +92,13 @@ namespace NativeStringCollections
         {
             this.Add((Char16*)entity.GetUnsafePtr(), entity.Length);
         }
-        /// <summary>
-        /// specialize for NativeList
-        /// </summary>
-        /// <param name="str"></param>
-        public unsafe void Add(NativeList<Char16> str)
-        {
-            this.Add((Char16*)str.GetUnsafePtr(), str.Length);
-        }
-        /// <summary>
-        /// specialize for NativeArray
-        /// </summary>
-        /// <param name="str"></param>
-        public unsafe void Add(NativeArray<Char16> str)
-        {
-            this.Add((Char16*)str.GetUnsafePtr(), str.Length);
-        }
-        /// <summary>
-        /// specialize for NativeList
-        /// </summary>
-        /// <param name="str"></param>
-        public unsafe void Add(NativeList<char> str)
-        {
-            this.Add((char*)str.GetUnsafePtr(), str.Length);
-        }
-        /// <summary>
-        /// specialize for NativeArray
-        /// </summary>
-        /// <param name="str"></param>
-        public unsafe void Add(NativeArray<char> str)
-        {
-            this.Add((char*)str.GetUnsafePtr(), str.Length);
-        }
 
         /// <summary>
         /// Get the index of the entity.
         /// </summary>
         /// <param name="key">entity</param>
         /// <returns>index or -1 (not found)</returns>
-        public unsafe int IndexOf<T>(T key)
-            where T : IJaggedArraySliceBase<Char16>
+        public int IndexOf(StringEntity key)
         {
             return _jarr.IndexOf(key);
         }
@@ -170,19 +107,15 @@ namespace NativeStringCollections
         /// </summary>
         /// <param name="key">entity</param>
         /// <returns>index or -1 (not found)</returns>
-        public unsafe int IndexOf(IEnumerable<char> key)
+        public int IndexOf(ReadOnlyStringEntity key)
         {
-            int ret = -1;
-            using(var tmp = new NativeList<Char16>(Allocator.TempJob))
-            {
-                foreach(char c in key)
-                {
-                    tmp.Add((Char16)c);
-                }
-                ret = _jarr.IndexOf(tmp);
-            }
-            return ret;
+            return _jarr.IndexOf(key);
         }
+        public int IndexOf<T>(T key)
+            where T : IJaggedArraySliceBase<Char16>
+        {
+            return _jarr.IndexOf(key);
+        } 
 
         public void RemoveAt(int index)
         {

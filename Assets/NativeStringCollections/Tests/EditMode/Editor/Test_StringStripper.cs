@@ -182,7 +182,7 @@ namespace Tests
         {
             return this.CheckStripperResultImpl((char*)result.GetUnsafePtr(), result.Length, ref_data);
         }
-        private unsafe bool CheckStripperResult(IJaggedArraySliceBase<char> result, string ref_data)
+        private unsafe bool CheckStripperResult(IJaggedArraySliceBase<Char16> result, string ref_data)
         {
             return this.CheckStripperResultImpl((char*)result.GetUnsafePtr(), result.Length, ref_data);
         }

@@ -42,6 +42,9 @@ namespace NativeStringCollections.Demo
         public TMP_Dropdown dropdownDataSize;
         private List<int> _dataSizeList;
 
+        public TMP_Dropdown dropdownDecodeBlockSize;
+        private List<int> _decodeBlockSizeList;
+
         public Slider generateProgressSlider;
 
         public TMP_Text generateTime;
@@ -104,6 +107,7 @@ namespace NativeStringCollections.Demo
 
             // swich loader mode
             _loader.FlushLoadJobs = flushing.isOn;
+            _loader.BlockSize = _decodeBlockSizeList[dropdownDecodeBlockSize.value];
             _loader.MaxJobCount = _maxJobList[dropdownMaxJob.value];
 
             // update loader
@@ -123,7 +127,7 @@ namespace NativeStringCollections.Demo
                 _write_file_time = 0;
                 for(int i=0; i<n_files; i++)
                 {
-                    _generator.SetPath(_loader.GetFile(i));
+                    _generator.SetPath(_loader.GetFilePath(i));
                     _generator.Generate(encoding, data_size, i+1, 0.1f);
 
                     _write_file_time += _generator.ElapsedMilliseconds;
@@ -162,27 +166,51 @@ namespace NativeStringCollections.Demo
                 dropdownEncoding.value = 0;
             }
 
-            _dataSizeList = new List<int>();
-            _dataSizeList.Clear();
-
-            _dataSizeList.Add(1024);
-            _dataSizeList.Add(4096);
-            _dataSizeList.Add(32768);
-            _dataSizeList.Add(125000);
-            _dataSizeList.Add(250000);
-            _dataSizeList.Add(500000);
+            _dataSizeList = new List<int>
+            {
+                1024, 4096, 16384, 32768,
+                125000, 250000, 500000, 1000000,
+            };
 
             if (dropdownDataSize)
             {
                 dropdownDataSize.ClearOptions();
 
                 var drop_menu = new List<string>();
+                int index_default;
                 foreach (var s in _dataSizeList)
                 {
-                    drop_menu.Add(s.ToString());
+                    if (s == NativeStringCollections.Define.DefaultDecodeBlock)
+                    {
+                        index_default = drop_menu.Count;
+                        drop_menu.Add(s.ToString() + " (default)");
+                    }
+                    else
+                    {
+                        drop_menu.Add(s.ToString());
+                    }
                 }
                 dropdownDataSize.AddOptions(drop_menu);
                 dropdownDataSize.value = 0;
+            }
+
+            _decodeBlockSizeList = new List<int>
+            {
+                64, 256, 1024, 2048, 4096, 8192,
+                16384, 32768, 65536, 131072, 262144,
+            };
+
+            if (dropdownDecodeBlockSize)
+            {
+                dropdownDecodeBlockSize.ClearOptions();
+
+                var drop_menu = new List<string>();
+                foreach (var s in _decodeBlockSizeList)
+                {
+                    drop_menu.Add(s.ToString());
+                }
+                dropdownDecodeBlockSize.AddOptions(drop_menu);
+                dropdownDecodeBlockSize.value = 3;
             }
 
             _maxJobList = new List<int>();

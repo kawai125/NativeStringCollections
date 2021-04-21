@@ -1,8 +1,4 @@
-﻿// select using AsyncTextFileLoader<> (optimized for multiple files and multiple data users)
-//     or using AsyncTextFileReader<> (simple implementation: 1 file and 1 job)
-#define USE_ASYNC_TEXT_FILE_READER
-
-using System;
+﻿using System;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
@@ -37,9 +33,9 @@ class DummyParser : ITextFileParser, IDisposable
     {
         Lines = 0;
     }
-    public unsafe bool ParseLine(ReadOnlyStringEntity se)
+    public unsafe bool ParseLines(NativeStringList lines)
     {
-        Lines++;
+        Lines += lines.Length;
         return true;
     }
     public void PostReadProc()
@@ -66,21 +62,26 @@ public class Demo_ReadingLargeFile : MonoBehaviour
     public TMP_Dropdown _dropdownDataSize;
     private List<int> _dataSizeList;
 
+    public TMP_Dropdown _dropdownIDInterval;
+    private List<int> _idIntervalList;
+
     public TMP_Dropdown _dropdownDecodeSize;
     private List<int> _decodeSizeList;
 
     public Button _generateButton;
+    private TMP_Text _generateButtonText;
     public Slider _generateProgressSlider;
     private float _generateProgress;
     private bool _generateInCurrentProc;
 
     public Toggle _toggleLoadFileInMainThread;
     public Button _loadButton;
+    private TMP_Text _loadButtonText;
+    private bool _loadAction;
+
     public Slider _loadProgressSlider;
     private float _loadProgress;
     public TextMeshProUGUI _loadProgressText;
-
-    public Button _unLoadButton;
 
     public TextMeshProUGUI _generateTimeText;
     public TextMeshProUGUI _loadTimeText;
@@ -91,12 +92,10 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
     private CharaDataGenerator _generator;
 
-#if USE_ASYNC_TEXT_FILE_READER
     private AsyncTextFileReader<CharaDataParser> _loader;
-#else
-    private AsyncTextFileLoader<CharaDataParser> _loader;
-#endif
-    //private AsyncTextFileLoader<DummyParser> _loader;
+    //private AsyncTextFileReader<DummyParser> _loader;
+
+    public GameObject burstSwitch;
 
     // Start is called before the first frame update
     void Start()
@@ -136,15 +135,11 @@ public class Demo_ReadingLargeFile : MonoBehaviour
             _dropdownEncoding.value = 0;
         }
 
-        _dataSizeList = new List<int>();
-        _dataSizeList.Clear();
-
-        _dataSizeList.Add(1024);
-        _dataSizeList.Add(4096);
-        _dataSizeList.Add(32768);
-        _dataSizeList.Add(125000);
-        _dataSizeList.Add(250000);
-        _dataSizeList.Add(500000);
+        _dataSizeList = new List<int>
+        {
+            1024, 4096, 16384, 32768,
+            125000, 250000, 500000, 1000000,
+        };
 
         if (_dropdownDataSize)
         {
@@ -156,18 +151,33 @@ public class Demo_ReadingLargeFile : MonoBehaviour
                 drop_menu.Add(s.ToString());
             }
             _dropdownDataSize.AddOptions(drop_menu);
-            _dropdownDataSize.value = 0;
+            _dropdownDataSize.value = 1;
         }
 
-        _decodeSizeList = new List<int>();
-        _decodeSizeList.Add(64);
-        _decodeSizeList.Add(256);
-        _decodeSizeList.Add(1024);
-        _decodeSizeList.Add(2048);
-        _decodeSizeList.Add(4096);
-        _decodeSizeList.Add(16384);
-        _decodeSizeList.Add(65536);
-        _decodeSizeList.Add(262144);
+        _idIntervalList = new List<int>
+        {
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+            11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+            21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+        };
+        if (_dropdownIDInterval)
+        {
+            _dropdownIDInterval.ClearOptions();
+
+            var drop_menu = new List<string>();
+            foreach(var s in _idIntervalList)
+            {
+                drop_menu.Add(s.ToString());
+            }
+            _dropdownIDInterval.AddOptions(drop_menu);
+            _dropdownIDInterval.value = 0;
+        }
+
+        _decodeSizeList = new List<int>
+        {
+            64, 256, 1024, 2048, 4096, 8192,
+            16384, 32768, 65536, 131072, 262144,
+        };
 
         if (_dropdownDecodeSize)
         {
@@ -195,43 +205,33 @@ public class Demo_ReadingLargeFile : MonoBehaviour
         _generateProgress = 0.0f;
         _loadProgress = 0.0f;
 
-
         _generator = new CharaDataGenerator();
         _generator.SetPath(_path);
         _generatorPrevState = _generator.IsStandby;
 
-#if USE_ASYNC_TEXT_FILE_READER
         _loader = new AsyncTextFileReader<CharaDataParser>(_path, Allocator.Persistent);
+        //_loader = new AsyncTextFileReader<DummyParser>(Allocator.Persistent);
         _loaderPrevState = _loader.GetState;
-#else
-        _loader = new AsyncTextFileLoader<CharaDataParser>(Allocator.Persistent);
-        //_loader = new AsyncTextFileLoader<DummyParser>(Allocator.Persistent);
-        _loader.AddFile(_path);
-        _loaderPrevState = _loader.GetState(0);
-#endif
+        _loadAction = false;
+
+        var switch_obj = burstSwitch.GetComponent<BurstSwitch>();
+        switch_obj.loader = _loader;
+
+        _generateButtonText = _generateButton.GetComponentInChildren<TMP_Text>();
+        _loadButtonText = _loadButton.GetComponentInChildren<TMP_Text>();
     }
     private void OnDestroy()
     {
-#if USE_ASYNC_TEXT_FILE_READER
         var data = _loader.Data;
         data.Dispose();
         _loader.Dispose();
-#else
-        foreach (var data in _loader.DataList) data.Dispose();
-        _loader.Dispose();
-#endif
     }
 
     // Update is called once per frame
     void Update()
     {
-#if USE_ASYNC_TEXT_FILE_READER
         // check AsyncTextFileReader<>.JobState for calling Complete().
         if (_loader.JobState == ReadJobState.WaitForCallingComplete) _loader.Complete();
-#else
-        // calling "AsyncTextFileLoader<>.Update()" on update is necessary.
-        _loader.Update();
-#endif
 
         // progress bar
         if(_generator.N > 0 && !_generator.IsStandby)
@@ -251,11 +251,8 @@ public class Demo_ReadingLargeFile : MonoBehaviour
         }
         _generateProgressSlider.value = _generateProgress;
 
-#if USE_ASYNC_TEXT_FILE_READER
         var loadInfo = _loader.GetState;
-#else
-        var loadInfo = _loader.GetState(0);
-#endif
+
         if(loadInfo.Length > 0 && !loadInfo.IsStandby)
         {
             _loadProgress = (float)loadInfo.Read / (float)loadInfo.Length;
@@ -278,21 +275,24 @@ public class Demo_ReadingLargeFile : MonoBehaviour
         if (_generator.IsStandby)
         {
             _generateButton.interactable = true;
-            if(!_generatorPrevState) _generateButton.name = "Write File";
+            if(!_generatorPrevState) _generateButtonText.text = "Write File";
         }
-        if (loadInfo.IsCompleted)
+        if (loadInfo.IsStandby && _loadAction)
         {
             _loadButton.interactable = true;
-            if(!_loaderPrevState.IsCompleted) _loadButton.name = "Load file";
-        }
 
-        if(loadInfo.RefCount > 0)
-        {
-            _unLoadButton.interactable = true;
-        }
-        else
-        {
-            _unLoadButton.interactable = false;
+            if(loadInfo.RefCount > 0)
+            {
+                _loadButtonText.text = "UnLoad file";
+            }
+            else
+            {
+                _loadButtonText.text = "Load file";
+            }
+
+            Debug.Log($"ref count = {loadInfo.RefCount}");
+
+            _loadAction = false;
         }
 
 
@@ -323,42 +323,35 @@ public class Demo_ReadingLargeFile : MonoBehaviour
         {
             if (loadInfo.IsCompleted)
             {
-#if USE_ASYNC_TEXT_FILE_READER
                 var data = _loader.Data;
-#else
-                var data = _loader[0];
-#endif
 
                 var sb = new StringBuilder();
-                sb.Append("# of Lines : " + data.Lines.ToString() + '\n');
-                sb.Append("# of Data : " + data.Data.Length.ToString() + '\n');
+                sb.Append($"# of Lines : {data.Lines}\n");
+                sb.Append($"# of Data : {data.Data.Length}\n");
                 sb.Append('\n');
-                sb.Append("ReadAsync: " + loadInfo.DelayReadAsync.ToString("e") + '\n');
-                sb.Append("ParseText: " + loadInfo.DelayParseText.ToString("e") + '\n');
-                sb.Append("PostProc : " + loadInfo.DelayPostProc.ToString("e") + '\n');
-                sb.Append("Total    : " + loadInfo.Delay.ToString("e") + " ms\n");
+                sb.Append($"ReadAsync: {loadInfo.DelayReadAsync.ToString("F5")}\n");
+                sb.Append($"ParseText: {loadInfo.DelayParseText.ToString("F5")}\n");
+                sb.Append($"PostProc : {loadInfo.DelayPostProc.ToString("F5")}\n");
+                sb.Append($"Total    : {loadInfo.Delay.ToString("F5")} ms\n");
                 _loadTimeText.text = sb.ToString();
                 sb.Clear();
 
-                /*
-                var parser = _loader[0];
-                if (parser.ParserState != CharaDataParser.ReadMode.Complete)
+                if (data.ParserState != CharaDataParser.ReadMode.Complete)
                 {
                     sb.Append("Parser ERROR:\n");
-                    sb.Append("  # of Data: " + parser.Data.Length.ToString() + '\n');
-                    sb.Append("  line     : " + parser.Lines.ToString() + '\n');
-                    sb.Append("  state    : " + parser.ParserState + '\n');
+                    sb.Append($"  # of Data: {data.Data.Length}\n");
+                    sb.Append($"  line     : {data.Lines}\n");
+                    sb.Append($"  state    : {data.ParserState}\n");
                     sb.Append('\n');
 
-                    if(parser.ParserState == CharaDataParser.ReadMode.HeaderError)
+                    if(data.ParserState == CharaDataParser.ReadMode.HeaderError)
                     {
-                        sb.Append("  N = " + parser.N + '\n');
-                        sb.Append("  D = " + parser.D + '\n');
-                        sb.Append("  R = " + parser.R + '\n');
+                        sb.Append($"  N = {data.N}\n");
+                        sb.Append($"  D = {data.D}\n");
+                        sb.Append($"  R = {data.R}\n");
                     }
                     Debug.LogError(sb.ToString());
                 }
-                */
             }
             else
             {
@@ -377,12 +370,13 @@ public class Demo_ReadingLargeFile : MonoBehaviour
         if (_generator.IsStandby)
         {
             _generateButton.interactable = false;
-            _generateButton.name = "Now Writing...";
+            _generateButtonText.text = "Now Writing...";
 
-            var e = _encodingList[_dropdownEncoding.value];
-            int n = _dataSizeList[_dropdownDataSize.value];
+            var encoding = _encodingList[_dropdownEncoding.value];
+            int data_size = _dataSizeList[_dropdownDataSize.value];
+            int id_interval = _idIntervalList[_dropdownIDInterval.value];
             _generateInCurrentProc = true;
-            _generator.GenerateAsync(e, n, 1, 0.005f);
+            _generator.GenerateAsync(encoding, data_size, id_interval, 0.1f);
         }
     }
 
@@ -392,42 +386,31 @@ public class Demo_ReadingLargeFile : MonoBehaviour
 
         if (_toggleLoadFileInMainThread.isOn)
         {
-#if USE_ASYNC_TEXT_FILE_READER
             _loader.LoadFileInMainThread();
-#else
-            _loader.LoadFileInMainThread(0);
-#endif
             return;
         }
         else
         {
-#if USE_ASYNC_TEXT_FILE_READER
             var info = _loader.GetState;
-#else
-            var info = _loader.GetState(0);
-#endif
             if (info.IsStandby)
             {
                 _loadButton.interactable = false;
-                _loadButton.name = "Now Loading...";
+                _loadButtonText.text = "Now Loading...";
 
                 _loader.Encoding = _encodingList[_dropdownEncoding.value];
 
-#if USE_ASYNC_TEXT_FILE_READER
-                _loader.LoadFile();
-#else
-                _loader.LoadFile(0);
-#endif
+                if (info.RefCount == 0)
+                {
+                    _loader.LoadFile();
+                }
+                else
+                {
+                    _loader.UnLoadFile();
+                }
+
+                _loadAction = true;
             }
         }
-    }
-    public void OnClickUnLoadFile()
-    {
-#if USE_ASYNC_TEXT_FILE_READER
-        _loader.UnLoadFile();
-#else
-        _loader.UnLoadFile(0);
-#endif
     }
 }
 

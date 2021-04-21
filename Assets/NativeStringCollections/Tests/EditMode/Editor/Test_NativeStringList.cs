@@ -82,9 +82,34 @@ namespace Tests
 
             NSL.Dispose();
 #else
-            Debug.Log("this feature will be enabled when the macro 'NATIVE_STRING_COLLECTION_TRACE_REALLOCATION' is defined.");
+            Debug.Log("this feature will be enabled when the macro 'ENABLE_UNITY_COLLECTIONS_CHECKS' is defined.");
             Debug.Log("it is not tested in current setting.");
 #endif
+        }
+
+        [Test]
+        public void CheckAPI_StringEntity_IndexOf()
+        {
+            string str = "1234567890--@@G1234567890--@@@xxmhr1234567890--@@";
+
+            var NSL = new NativeStringList(Allocator.TempJob);
+            NSL.Add(str);
+
+            StringEntity entity = NSL[0];
+
+            // StringEntity.IndexOf(Char16)
+            Assert.AreEqual(entity.IndexOf('6'), 5);
+            Assert.AreEqual(entity.IndexOf('6', 10), 20);
+            Assert.AreEqual(entity.IndexOf('x'), 30);
+            Assert.AreEqual(entity.IndexOf('W'), -1);  // not found
+
+            // StringEntity.IndexOf(string) (= same implementation of IndexOf(StringEntity))
+            Assert.AreEqual(entity.IndexOf("@@x"), 28);
+            Assert.AreEqual(entity.IndexOf("890-"), 7);
+            Assert.AreEqual(entity.IndexOf("890-", 12), 22);
+            Assert.AreEqual(entity.IndexOf("99"), -1);  // not found
+
+            NSL.Dispose();
         }
 
 

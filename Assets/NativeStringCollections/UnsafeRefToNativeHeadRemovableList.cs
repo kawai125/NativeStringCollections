@@ -5,98 +5,79 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
 
-namespace NativeStringCollections.Impl
+namespace NativeStringCollections.Utility
 {
-    using NativeStringCollections.Utility;
+    using NativeStringCollections.Impl;
+
+    internal static class NativeHeadRemovableListExt
+    {
+        internal static UnsafeRefToNativeHeadRemovableList<T> GetUnsafeRef<T>(this NativeHeadRemovableList<T> target)
+            where T : unmanaged
+        {
+            return new UnsafeRefToNativeHeadRemovableList<T>(target);
+        }
+    };
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct NativeHeadRemovableList<T> : IDisposable where T : unmanaged
+    internal unsafe struct UnsafeRefToNativeHeadRemovableList<T>
+        where T : unmanaged
     {
-        private const int HeadCapacityFactor = 4;
+        private UnsafeRefToNativeList<T> _list;
 
-        internal NativeList<T> _list;
-        internal PtrHandle<int> _start;
+        [NativeDisableUnsafePtrRestriction]
+        private int* _start;
 
-        public unsafe NativeHeadRemovableList(Allocator alloc)
+        public UnsafeRefToNativeHeadRemovableList(NativeHeadRemovableList<T> list)
         {
-            _list = new NativeList<T>(8, alloc);
-            _list.Clear();
-            _start = new PtrHandle<int>(alloc);
-        }
-        public unsafe NativeHeadRemovableList(int size, Allocator alloc)
-        {
-            _list = new NativeList<T>(size, alloc);
-            _start = new PtrHandle<int>(alloc);
+            _list = new UnsafeRefToNativeList<T>(list._list);
+            _start = list._start.Target;
         }
 
         public unsafe int Capacity
         {
-            get { return _list.Capacity - _start; }
+            get { return _list.Capacity - *_start; }
             set
             {
                 // Length check
                 if (value < Length) throw new ArgumentOutOfRangeException("the Capacity must be > Length.");
 
-                _list.Capacity = value + _start;
+                _list.Capacity = value + *_start;
             }
         }
-        public unsafe int HeadCapacity { get { return _start; } }
-        public bool IsCreated { get { return _list.IsCreated; } }
+        public unsafe int HeadCapacity { get { return *_start; } }
         public unsafe T this[int index]
         {
-            get { return _list[_start + index]; }
-            set { _list[_start + index] = value; }
+            get { return _list[*_start + index]; }
+            set { _list[*_start + index] = value; }
         }
-        public unsafe int Length { get { return _list.Length - _start; } }
+        public unsafe int Length { get { return _list.Length - *_start; } }
 
         public void Add(T value) { _list.Add(value); }
-        public void AddRange(NativeArray<T> elements) { _list.AddRange(elements); }
         public unsafe void AddRange(void* elements, int count) { _list.AddRange(elements, count); }
 
         public unsafe void Clear(int front_capacity = 0)
         {
-            if(_start == 0)
+            if(*_start == 0)
             {
                 _list.Clear();
             }
             else
             {
                 this.InitStartPoint(front_capacity);
-                _list.ResizeUninitialized(_start.Value);
-            }
-        }
-        public void CopyFrom(T[] array) { _list.CopyFrom(array); }
-
-        public void Dispose()
-        {
-            this.Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-        void Dispose(bool disposing)
-        {
-            // disposing managed resource
-            if (disposing)
-            {
-
-            }
-            // disposing unmanaged resource
-            if (_list.IsCreated)
-            {
-                _list.Dispose();
-                _start.Dispose();
+                _list.ResizeUninitialized(*_start);
             }
         }
 
         public unsafe void RemoveAtSwapBack(int index)
         {
-            _list.RemoveAtSwapBack(_start + index);
+            _list.RemoveAtSwapBack(*_start + index);
         }
 
         public unsafe void RemoveHead(int count = 1)
         {
             if (count < 1 || Length < count) throw new ArgumentOutOfRangeException("invalid length of remove target.");
 
-            _start.Value = _start + count;
+            *_start = *_start + count;
         }
         public unsafe void InsertHead(T* ptr, int length)
         {
@@ -114,9 +95,9 @@ namespace NativeStringCollections.Impl
             */
 
             // when enough space exists in head
-            if (length <= _start)
+            if (length <= *_start)
             {
-                _start.Value = _start - length;
+                *_start = *_start - length;
                 UnsafeUtility.MemCpy(this.GetUnsafePtr(), ptr, UnsafeUtility.SizeOf<T>() * length);
 
                 /*
@@ -133,11 +114,11 @@ namespace NativeStringCollections.Impl
             int len_move = this.Length;
             _list.ResizeUninitialized(new_length);
             T* dest = (T*)_list.GetUnsafePtr() + length;
-            T* source = (T*)_list.GetUnsafePtr() + _start;
+            T* source = (T*)_list.GetUnsafePtr() + *_start;
             UnsafeUtility.MemMove(dest, source, UnsafeUtility.SizeOf<T>() * len_move);
 
             // insert data
-            _start.Value = 0;
+            *_start = 0;
             UnsafeUtility.MemCpy((void*)_list.GetUnsafePtr(), (void*)ptr, UnsafeUtility.SizeOf<T>() * length);
 
             /*
@@ -152,11 +133,11 @@ namespace NativeStringCollections.Impl
         {
             if (length == 0)
             {
-                this.Clear(_start.Value);
+                this.Clear(*_start);
             }
             else
             {
-                _list.ResizeUninitialized(_start + length);
+                _list.ResizeUninitialized(*_start + length);
             }
         }
 
@@ -170,11 +151,11 @@ namespace NativeStringCollections.Impl
                 T* dest = (T*)this.GetUnsafePtr();
 
                 UnsafeUtility.MemMove(dest, source, this.Length);
-                _list.ResizeUninitialized(_start.Value + this.Length);
+                _list.ResizeUninitialized(*_start + this.Length);
             }
             else
             {
-                this.Clear(_start.Value);
+                this.Clear(*_start);
             }
         }
         private void InitStartPoint(int front_capacity)
@@ -183,13 +164,13 @@ namespace NativeStringCollections.Impl
             {
                 throw new ArgumentOutOfRangeException("invalid front_capacity size");
             }
-            _start.Value = front_capacity;
+            *_start = front_capacity;
         }
 
         public unsafe void* GetUnsafePtr()
         {
             T* ptr = (T*)_list.GetUnsafePtr();
-            ptr += _start;
+            ptr += *_start;
             return (void*)ptr;
         }
     }

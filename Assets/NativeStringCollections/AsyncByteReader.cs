@@ -100,7 +100,7 @@ namespace NativeStringCollections.Impl
             this.CheckPreviousJob();
 
             var fileInfo = new System.IO.FileInfo(path);
-            if (!fileInfo.Exists) throw new ArgumentException("the file '" + path + "'is not found.");
+            if (!fileInfo.Exists) throw new ArgumentException($"the file '{path}'is not found.");
 
             this.Reallocate(fileInfo.Length);
 
@@ -121,7 +121,7 @@ namespace NativeStringCollections.Impl
             
             var fileInfo = new System.IO.FileInfo(path);
             if (!fileInfo.Exists)
-                throw new ArgumentException("the file '" + path + "'is not found.");
+                throw new ArgumentException($"the file '{path}'is not found.");
 
             long bufferSize = _info.Target->bufferSize;
             long offset = i_block * bufferSize;

@@ -10,8 +10,8 @@ namespace NativeStringCollections
     public static class StringStripperExt
     {
 
-        private unsafe static T StripWhiteSpaceImpl<T>(in T source, bool left, bool right)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+        internal unsafe static T StripWhiteSpaceImpl<T>(T source, bool left, bool right)
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             // L side
             int start = 0;
@@ -19,7 +19,7 @@ namespace NativeStringCollections
             {
                 for (int i = 0; i < source.Length; i++)
                 {
-                    if (!char.IsWhiteSpace(source[i]))
+                    if (!source[i].IsWhiteSpace())
                     {
                         start = i;
                         break;
@@ -33,7 +33,7 @@ namespace NativeStringCollections
             {
                 for (int i = last; i >= start; i--)
                 {
-                    if (!char.IsWhiteSpace(source[i]))
+                    if (!source[i].IsWhiteSpace())
                     {
                         last = i;
                         break;
@@ -53,8 +53,8 @@ namespace NativeStringCollections
                 return (T)source.Slice(0,0);
             }
         }
-        private unsafe static T StripCharImpl<T>(in T source, char target, bool left, bool right)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+        internal unsafe static T StripCharImpl<T>(T source, Char16 target, bool left, bool right)
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             // L side
             int start = 0;
@@ -96,10 +96,11 @@ namespace NativeStringCollections
                 return (T)source.Slice(0, 0);
             }
         }
-        private unsafe static T StripStringImpl<T>(in T source,
-                                                   IJaggedArraySliceBase<char> target,
-                                                   bool left, bool right)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+        internal unsafe static T StripStringImpl<T, Ttgt>(T source,
+                                                          Ttgt target,
+                                                          bool left, bool right)
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
+            where Ttgt : IJaggedArraySliceBase<Char16>
         {
             // L side
             int start = 0;
@@ -177,7 +178,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <returns></returns>
         public unsafe static T Lstrip<T>(this T source)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, true, false);
         }
@@ -188,7 +189,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <returns></returns>
         public unsafe static T Rstrip<T>(this T source)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, false, true);
         }
@@ -199,7 +200,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <returns></returns>
         public unsafe static T Strip<T>(this T source)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripWhiteSpaceImpl(source, true, true);
         }
@@ -211,7 +212,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Lstrip<T>(this T source, char target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripCharImpl(source, target, true, false);
         }
@@ -223,7 +224,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Rstrip<T>(this T source, char target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripCharImpl(source, target, false, true);
         }
@@ -235,7 +236,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Strip<T>(this T source, char target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripCharImpl(source, target, true, true);
         }
@@ -247,7 +248,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Lstrip<T>(this T source, NativeList<char> target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), true, false);
         }
@@ -259,7 +260,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Rstrip<T>(this T source, NativeList<char> target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), false, true);
         }
@@ -271,7 +272,7 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <returns></returns>
         public unsafe static T Strip<T>(this T source, NativeList<char> target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
         {
             return StripStringImpl(source, target.ToStringEntity(), true, true);
         }
@@ -282,8 +283,9 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Lstrip<T>(this T source, IJaggedArraySliceBase<char> target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+        public unsafe static T Lstrip<T, Ttgt>(this T source, Ttgt target)
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
+            where Ttgt : IJaggedArraySliceBase<Char16>
         {
             return StripStringImpl(source, target, true, false);
         }
@@ -294,8 +296,9 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Rstrip<T>(this T source, IJaggedArraySliceBase<char> target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+        public unsafe static T Rstrip<T, Ttgt>(this T source, Ttgt target)
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
+            where Ttgt : IJaggedArraySliceBase<Char16>
         {
             return StripStringImpl(source, target, false, true);
         }
@@ -306,8 +309,9 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <returns></returns>
-        public unsafe static T Strip<T>(this T source, IJaggedArraySliceBase<char> target)
-            where T : IJaggedArraySliceBase<char>, ISlice<T>
+        public unsafe static T Strip<T, Ttgt>(this T source, Ttgt target)
+            where T : IJaggedArraySliceBase<Char16>, ISlice<T>
+            where Ttgt : IJaggedArraySliceBase<Char16>
         {
             return StripStringImpl(source, target, true, true);
         }
@@ -382,6 +386,76 @@ namespace NativeStringCollections
         public static NativeList<char> Strip(this NativeList<char> source, Allocator alloc)
         {
             var tmp = new NativeList<char>(alloc);
+            Strip(source, tmp);
+            return tmp;
+        }
+
+        /// <summary>
+        /// strip char.IsWhiteSpece() charactors from left side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="result"></param>
+        public unsafe static void Lstrip(this NativeList<Char16> source, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripWhiteSpaceImpl(source.ToStringEntity(), true, false);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip char.IsWhiteSpece() charactors from right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="result"></param>
+        public unsafe static void Rstrip(this NativeList<Char16> source, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripWhiteSpaceImpl(source.ToStringEntity(), false, true);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip char.IsWhiteSpece() charactors from left and right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="result"></param>
+        public unsafe static void Strip(this NativeList<Char16> source, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripWhiteSpaceImpl(source.ToStringEntity(), true, true);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip char.IsWhiteSpece() charactors from left side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Lstrip(this NativeList<Char16> source, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
+            Lstrip(source, tmp);
+            return tmp;
+        }
+        /// <summary>
+        /// strip char.IsWhiteSpece() charactors from right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Rstrip(this NativeList<Char16> source, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
+            Rstrip(source, tmp);
+            return tmp;
+        }
+        /// <summary>
+        /// strip char.IsWhiteSpece() charactors from left and right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Strip(this NativeList<Char16> source, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
             Strip(source, tmp);
             return tmp;
         }
@@ -463,6 +537,82 @@ namespace NativeStringCollections
             return tmp;
         }
 
+        /// <summary>
+        /// strip target charactor from left side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="result"></param>
+        public unsafe static void Lstrip(this NativeList<Char16> source, Char16 target, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripCharImpl(source.ToStringEntity(), target, true, false);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip target charactor from right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="result"></param>
+        public unsafe static void Rstrip(this NativeList<Char16> source, Char16 target, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripCharImpl(source.ToStringEntity(), target, false, true);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip target charactor from left and right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="result"></param>
+        public unsafe static void Strip(this NativeList<Char16> source, Char16 target, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripCharImpl(source.ToStringEntity(), target, true, true);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip target charactor from left side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Lstrip(this NativeList<Char16> source, Char16 target, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
+            Lstrip(source, target, tmp);
+            return tmp;
+        }
+        /// <summary>
+        /// strip target charactor from right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Rstrip(this NativeList<Char16> source, Char16 target, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
+            Rstrip(source, target, tmp);
+            return tmp;
+        }
+        /// <summary>
+        /// strip target charactor from left and right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Strip(this NativeList<Char16> source, Char16 target, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
+            Strip(source, target, tmp);
+            return tmp;
+        }
+
 
         /// <summary>
         /// strip target string from left side.
@@ -539,13 +689,92 @@ namespace NativeStringCollections
             Strip(source, target, tmp);
             return tmp;
         }
+
         /// <summary>
         /// strip target string from left side.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <param name="result"></param>
-        public unsafe static void Lstrip(this NativeList<char> source, IJaggedArraySliceBase<char> target, NativeList<char> result)
+        public unsafe static void Lstrip(this NativeList<Char16> source, NativeList<Char16> target, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripStringImpl(source.ToStringEntity(), target.ToStringEntity(), true, false);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip target string from right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="result"></param>
+        public unsafe static void Rstrip(this NativeList<Char16> source, NativeList<Char16> target, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripStringImpl(source.ToStringEntity(), target.ToStringEntity(), false, true);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip target string from left and right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="result"></param>
+        public unsafe static void Strip(this NativeList<Char16> source, NativeList<Char16> target, NativeList<Char16> result)
+        {
+            result.Clear();
+            var se = StripStringImpl(source.ToStringEntity(), target.ToStringEntity(), true, true);
+            result.AddRange((void*)se.GetUnsafePtr(), se.Length);
+        }
+        /// <summary>
+        /// strip target string from left side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Lstrip(this NativeList<Char16> source, NativeList<Char16> target, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
+            Lstrip(source, target, tmp);
+            return tmp;
+        }
+        /// <summary>
+        /// strip target string from right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Rstrip(this NativeList<Char16> source, NativeList<Char16> target, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
+            Rstrip(source, target, tmp);
+            return tmp;
+        }
+        /// <summary>
+        /// strip target string from left and right side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="alloc"></param>
+        /// <returns></returns>
+        public static NativeList<Char16> Strip(this NativeList<Char16> source, NativeList<Char16> target, Allocator alloc)
+        {
+            var tmp = new NativeList<Char16>(alloc);
+            Strip(source, target, tmp);
+            return tmp;
+        }
+
+
+        /// <summary>
+        /// strip target string from left side.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="result"></param>
+        public unsafe static void Lstrip<T>(this NativeList<Char16> source, T target, NativeList<Char16> result)
+            where T : IJaggedArraySliceBase<Char16>
         {
             result.Clear();
             var se = StripStringImpl(source.ToStringEntity(), target, true, false);
@@ -557,7 +786,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <param name="result"></param>
-        public unsafe static void Rstrip(this NativeList<char> source, IJaggedArraySliceBase<char> target, NativeList<char> result)
+        public unsafe static void Rstrip<T>(this NativeList<Char16> source, T target, NativeList<Char16> result)
+            where T : IJaggedArraySliceBase<Char16>
         {
             result.Clear();
             var se = StripStringImpl(source.ToStringEntity(), target, false, true);
@@ -569,7 +799,8 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="target"></param>
         /// <param name="result"></param>
-        public unsafe static void Strip(this NativeList<char> source, IJaggedArraySliceBase<char> target, NativeList<char> result)
+        public unsafe static void Strip<T>(this NativeList<Char16> source, T target, NativeList<Char16> result)
+            where T : IJaggedArraySliceBase<Char16>
         {
             result.Clear();
             var se = StripStringImpl(source.ToStringEntity(), target, true, true);
@@ -582,9 +813,10 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeList<char> Lstrip(this NativeList<char> source, IJaggedArraySliceBase<char> target, Allocator alloc)
+        public static NativeList<Char16> Lstrip<T>(this NativeList<Char16> source, T target, Allocator alloc)
+            where T : IJaggedArraySliceBase<Char16>
         {
-            var tmp = new NativeList<char>(alloc);
+            var tmp = new NativeList<Char16>(alloc);
             Lstrip(source, target, tmp);
             return tmp;
         }
@@ -595,9 +827,10 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeList<char> Rstrip(this NativeList<char> source, IJaggedArraySliceBase<char> target, Allocator alloc)
+        public static NativeList<Char16> Rstrip<T>(this NativeList<Char16> source, T target, Allocator alloc)
+            where T : IJaggedArraySliceBase<Char16>
         {
-            var tmp = new NativeList<char>(alloc);
+            var tmp = new NativeList<Char16>(alloc);
             Rstrip(source, target, tmp);
             return tmp;
         }
@@ -608,9 +841,10 @@ namespace NativeStringCollections
         /// <param name="target"></param>
         /// <param name="alloc"></param>
         /// <returns></returns>
-        public static NativeList<char> Strip(this NativeList<char> source, IJaggedArraySliceBase<char> target, Allocator alloc)
+        public static NativeList<Char16> Strip<T>(this NativeList<Char16> source, T target, Allocator alloc)
+            where T : IJaggedArraySliceBase<Char16>
         {
-            var tmp = new NativeList<char>(alloc);
+            var tmp = new NativeList<Char16>(alloc);
             Strip(source, target, tmp);
             return tmp;
         }
