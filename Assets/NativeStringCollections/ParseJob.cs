@@ -389,6 +389,7 @@ namespace NativeStringCollections
                 }
             }
 
+            public bool IsCompleted { get { return JobState == ReadJobState.Completed; } }
             public unsafe ReadJobState JobState { get { return _info.Target->job_state; } }
 
             public unsafe void Execute()

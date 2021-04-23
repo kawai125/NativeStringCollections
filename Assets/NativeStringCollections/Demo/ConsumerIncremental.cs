@@ -23,9 +23,17 @@ namespace NativeStringCollections.Demo
         private List<int> _widthList;
 
         public Button buttonContinue;
+        private TMP_Text _buttonText;
+        private ButtonState _buttonState;
+
+        private enum ButtonState
+        {
+            Loading, WaitForComplete, Pause
+        }
+
         private bool _continueRead;
 
-        private NativeQueue<int> _loadingQueue;
+        private NativeList<int> _loadingTarget;
         private int _last_loaded;
         private int _intervalCount;
 
@@ -34,20 +42,22 @@ namespace NativeStringCollections.Demo
         {
             _continueRead = false;
 
-            _loadingQueue = new NativeQueue<int>(Allocator.Persistent);
+            _loadingTarget = new NativeList<int>(Allocator.Persistent);
             _last_loaded = -1;
 
             this.InitializeDropdown();
+
+            _buttonText = buttonContinue.GetComponentInChildren<TMP_Text>();
         }
         private void OnDestroy()
         {
-            _loadingQueue.Dispose();
+            _loadingTarget.Dispose();
         }
 
         // Update is called once per frame
         void Update()
         {
-
+            _buttonState = ButtonState.Pause;
         }
         private void FixedUpdate()
         {
@@ -57,34 +67,55 @@ namespace NativeStringCollections.Demo
             if (_intervalCount < _intervalList[dropdownInterval.value]) return;
             _intervalCount = 0;
 
-            // next step
-            if (_loadingQueue.Count > 0) this.UnLoadLast();
-            this.LoadNext();
+            if (CheckAllTargetAreLoaded())
+            {
+                this.UpdateButtonText();
 
-            // change width
-            int new_width = _widthList[dropdownWidth.value];
-            int old_width = _loadingQueue.Count;
-            if(new_width > old_width)
-            {
-                int n_load = new_width - old_width;
-                for(int i=0; i<n_load; i++) this.LoadNext();
+                // all target were loaded. go next step
+                if (_loadingTarget.Length > 0) this.UnLoadLast();
+                this.LoadNext();
+
+                // change width
+                int new_width = _widthList[dropdownWidth.value];
+                int old_width = _loadingTarget.Length;
+                if (new_width > old_width)
+                {
+                    int n_load = new_width - old_width;
+                    for (int i = 0; i < n_load; i++) this.LoadNext();
+                }
+                else if (new_width < old_width)
+                {
+                    int n_unload = old_width - new_width;
+                    for (int i = 0; i < n_unload; i++) this.UnLoadLast();
+                }
             }
-            else if (new_width < old_width)
+            else
             {
-                int n_unload = old_width - new_width;
-                for(int i=0; i<n_unload; i++) this.UnLoadLast();
+                // wait for complete loading.
+                _buttonState = ButtonState.WaitForComplete;
+                _buttonText.text = "wait for complete";
             }
+        }
+        private bool CheckAllTargetAreLoaded()
+        {
+            for(int i=0; i<_loadingTarget.Length; i++)
+            {
+                int tgt_id = _loadingTarget[i];
+                if (!loader.GetState(tgt_id).IsCompleted) return false;
+            }
+            return true;
         }
         private void LoadNext()
         {
             int new_id = this.NextIndex();
             loader.LoadFile(new_id);
-            _loadingQueue.Enqueue(new_id);
+            _loadingTarget.Add(new_id);
         }
         private void UnLoadLast()
         {
-            int old_id = _loadingQueue.Dequeue();
+            int old_id = _loadingTarget[0];
             loader.UnLoadFile(old_id);
+            _loadingTarget.RemoveAt(0);
         }
         private int NextIndex()
         {
@@ -95,20 +126,37 @@ namespace NativeStringCollections.Demo
 
         public void OnClickContinue()
         {
-            var txt = buttonContinue.GetComponentInChildren<TMP_Text>();
-
             if (!_continueRead)
             {
                 _continueRead = true;
-                txt.text = "Loading...";
             }
             else
             {
                 _continueRead = false;
-                txt.text = "Pause\n(Press to Restart)";
             }
 
-            SwitchButtonColor(buttonContinue, txt, !_continueRead);
+            this.UpdateButtonText();
+
+            SwitchButtonColor(buttonContinue, _buttonText, !_continueRead);
+        }
+        private void UpdateButtonText()
+        {
+            if (_continueRead)
+            {
+                if(_buttonState != ButtonState.Loading)
+                {
+                    _buttonState = ButtonState.Loading;
+                    _buttonText.text = "Loading...";
+                }
+            }
+            else
+            {
+                if(_buttonState != ButtonState.Pause)
+                {
+                    _buttonState = ButtonState.Pause;
+                    _buttonText.text = "Pause\n(Press to Restart)";
+                }
+            }
         }
         private static void SwitchButtonColor(Button btn, TMP_Text txt, bool mode)
         {

@@ -252,6 +252,10 @@ namespace NativeStringCollections
                 FileIndex = file_index;
                 ParserID = parser_index;
             }
+            public override string ToString()
+            {
+                return $"file index = {FileIndex} => parser: {ParserID}";
+            }
         }
         private enum FileAction
         {
@@ -268,14 +272,18 @@ namespace NativeStringCollections
                 fileIndex = index;
                 this.action = action;
             }
+            public override string ToString()
+            {
+                return $"file index = {fileIndex} @ {action}";
+            }
         }
 
         private int _loadWaitingQueueNum;
         private NativeQueue<int> _parserAvail;
         private NativeList<Request> _requestList;
 
-        private NativeList<int> _updateLoadTgtTmp;
-        private NativeList<int> _updateUnLoadTgtTmp;
+        private NativeList<int> _updateLoadTgtList;
+        private NativeList<int> _updateUnLoadTgtList;
 
         private UnLoadJob<T> _unLoadJob;
 
@@ -304,8 +312,11 @@ namespace NativeStringCollections
 
             _requestList = new NativeList<Request>(_alloc);
 
-            _updateLoadTgtTmp = new NativeList<int>(_alloc);
-            _updateUnLoadTgtTmp = new NativeList<int>(_alloc);
+            _updateLoadTgtList = new NativeList<int>(_alloc);
+            _updateUnLoadTgtList = new NativeList<int>(_alloc);
+
+            _updateLoadTgtList.Clear();
+            _updateUnLoadTgtList.Clear();
 
             _unLoadJob = new UnLoadJob<T>(alloc);
         }
@@ -327,8 +338,8 @@ namespace NativeStringCollections
 
                 _requestList.Dispose();
 
-                _updateLoadTgtTmp.Dispose();
-                _updateUnLoadTgtTmp.Dispose();
+                _updateLoadTgtList.Dispose();
+                _updateUnLoadTgtList.Dispose();
 
                 _unLoadJob.Dispose();
             }
@@ -497,27 +508,73 @@ namespace NativeStringCollections
 #if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
             if (_requestList.Length > 0)
             {
-                sb.Append($"   _requestList.Length = {_requestList.Length}\n");
-                sb.Append($"   _runningJob.Length  = {_runningJob.Length}\n");
-                sb.Append($"   _maxJobCount        = {_maxJobCount}\n");
+                sb.Append("   _requestList = {\n");
+                for(int j = 0; j<_requestList.Length; j++)
+                {
+                    var request = _requestList[j];
+                    sb.Append($"    {request} : current ref = {_state[request.fileIndex].Target->RefCount}\n");
+                }
+                sb.Append("  }\n");
+                sb.Append("   _runningJob = {\n");
+                for (int j = 0; j < _runningJob.Length; j++)
+                {
+                    sb.Append($"    {_runningJob[j]}\n");
+                }
+                sb.Append("  }\n");
+                sb.Append($"   _maxJobCount = {_maxJobCount}\n");
             }
 #endif
             // no requests. or all available parser were running. retry in next Update().
-            if (_requestList.Length == 0 || (_maxJobCount - _runningJob.Length <= 0 && !flush_all_jobs))
+            if ((_requestList.Length == 0 && _updateLoadTgtList.Length == 0 && _updateUnLoadTgtList.Length == 0) ||
+                (_maxJobCount - _runningJob.Length <= 0 && !flush_all_jobs))
             {
 #if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                 if(sb.Length > 0)
                 {
-                    Debug.Log($" >> AsyncTextFileLoader.Update() >> \n    --- waiting for running jobs.\n{sb}");
+                //    Debug.Log($" >> AsyncTextFileLoader.Update() >> \n    --- waiting for running jobs.\n{sb}");
                     sb.Clear();
                 }
 #endif
                 return;
             }
 
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+            {
+                sb.Append(" @@ pended Load/UnLoad list:\n");
+                sb.Append("   _updateLoadTgtList = [");
+                bool first_sb = true;
+                for (int j = 0; j < _updateLoadTgtList.Length; j++)
+                {
+                    if (first_sb)
+                    {
+                        first_sb = false;
+                    }
+                    else
+                    {
+                        sb.Append(", ");
+                    }
+                    sb.Append(_updateLoadTgtList[j].ToString());
+                }
+                sb.Append("]\n");
+                sb.Append("   _updateUnLoadTgtList = [");
+                first_sb = true;
+                for(int j=0; j<_updateUnLoadTgtList.Length; j++)
+                {
+                    if (first_sb)
+                    {
+                        first_sb = false;
+                    }
+                    else
+                    {
+                        sb.Append(", ");
+                    }
+                    sb.Append(_updateUnLoadTgtList[j].ToString());
+                }
+                sb.Append("]\n");
+            }
+#endif
+
             //--- extract action
-            _updateLoadTgtTmp.Clear();
-            _updateUnLoadTgtTmp.Clear();
             for (int i=0; i<_requestList.Length; i++)
             {
                 var act = _requestList[i];
@@ -526,31 +583,36 @@ namespace NativeStringCollections
                     var tgt_state = _state[act.fileIndex];
                     if (tgt_state.Target->RefCount == 0)
                     {
-                        _updateLoadTgtTmp.Add(act.fileIndex);
+                        _updateLoadTgtList.Add(act.fileIndex);
                     }
                     tgt_state.Target->RefCount++;
                 }
                 else
                 {
-                    _updateUnLoadTgtTmp.Add(act.fileIndex);
+                    _updateUnLoadTgtList.Add(act.fileIndex);
                 }
             }
             _requestList.Clear();
 
             //--- preprocess unload action
-            for (int i=0; i< _updateUnLoadTgtTmp.Length; i++)
+            for (int i=_updateUnLoadTgtList.Length-1; i>=0; i--)
             {
-                int id = _updateUnLoadTgtTmp[i];
+                int id = _updateUnLoadTgtList[i];
                 var tgt_state = _state[id];
                 tgt_state.Target->RefCount--;
+                _updateUnLoadTgtList.RemoveAt(i);
+
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+                sb.Append($"  -- index = {id}, RefCount = {tgt_state.Target->RefCount}");
+#endif
 
                 if (tgt_state.Target->RefCount == 0)
                 {
-                    int found_index = _updateLoadTgtTmp.IndexOf(id);
+                    int found_index = _updateLoadTgtList.IndexOf(id);
                     if (found_index >= 0)
                     {
                         // remove from loading order (file loading is not performed)
-                        _updateLoadTgtTmp.RemoveAtSwapBack(found_index);
+                        _updateLoadTgtList.RemoveAtSwapBack(found_index);
 #if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                         sb.Append($"  -- loading index = {id} was cancelled.\n");
 #endif
@@ -558,7 +620,8 @@ namespace NativeStringCollections
                     else
                     {
                         // remove from loaded data
-                        if (_unLoadJob.JobState == ReadJobState.Completed && tgt_state.Target->IsStandby)
+                        if (_unLoadJob.IsCompleted &&
+                            tgt_state.Target->JobState == ReadJobState.Completed)
                         {
                             //--- unload in main thread
                             //_data[act.fileIndex].UnLoad();
@@ -570,14 +633,14 @@ namespace NativeStringCollections
                             //--- unload in job (workaround for LargeAllocation.Free() cost in T.UnLoad().)
                             _unLoadJob.AddUnLoadTarget(id, _data[id], _state[id].Target);
 #if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
-                            sb.Append($"   schedule UnLoadJob: file index = {id}");
+                            sb.Append($"   schedule UnLoadJob: file index = {id}\n");
 #endif
                         }
                         else
                         {
                             // now loading. unload request will try in next update.
-                            tgt_state.Target->RefCount++;  // reset ref count
-                            this.UnLoadFile(id);
+                            tgt_state.Target->RefCount++;
+                            _updateUnLoadTgtList.Add(id);
 #if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
                             sb.Append($"  -- index = {id} is loading in progress.");
                             sb.Append(" retry unload in next Update().\n");
@@ -592,18 +655,19 @@ namespace NativeStringCollections
                     sb_e.Append(" >> AsyncTextFileLoader.Update() >> \n");
                     sb_e.Append($"  invalid unloading for index = {id}.\n");
                     Debug.LogError(sb_e.ToString());
-#endif
                     throw new InvalidOperationException($"invalid UnLoading for index = {id}.");
+#else
+                    tgt_state.Target->RefCount = 0;   // reset ref count
+#endif
                 }
             }
-            _updateUnLoadTgtTmp.Clear();
 
             // schedule jobs
             //--- unload job
-            _unLoadJob.UnLoadAsync();
+            if(_unLoadJob.IsCompleted)_unLoadJob.UnLoadAsync();
 
             //--- supply parsers for load job
-            int n_add_parser = Math.Max(_updateLoadTgtTmp.Length - _parserAvail.Count, 0);
+            int n_add_parser = Math.Max(_updateLoadTgtList.Length - _parserAvail.Count, 0);
             if (!flush_all_jobs)
             {
                 n_add_parser = Math.Min(this.MaxJobCount - _parserPool.Count, n_add_parser);
@@ -617,10 +681,10 @@ namespace NativeStringCollections
 #endif
 
             //--- run jobs
-            int n_job = Math.Min(_parserAvail.Count, _updateLoadTgtTmp.Length);
+            int n_job = Math.Min(_parserAvail.Count, _updateLoadTgtList.Length);
             for(int i=0; i<n_job; i++)
             {
-                int file_index = _updateLoadTgtTmp[i];
+                int file_index = _updateLoadTgtList[i];
                 int p_id = _parserAvail.Dequeue();
                 var p_tmp = _parserPool[p_id];
                 var p_state = _state[file_index];
@@ -636,22 +700,22 @@ namespace NativeStringCollections
                 sb.Append($", parser_id = {p_id}\n");
 #endif
             }
+            _updateLoadTgtList.RemoveRange(0, n_job);
+            _loadWaitingQueueNum = _updateLoadTgtList.Length;
 
-            //--- write back excessive queue
-            _loadWaitingQueueNum = 0;
-            for (int i=n_job; i<_updateLoadTgtTmp.Length; i++)
+#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+            //--- report excessive queue
+            sb.Append("\n");
+            for (int i=n_job; i<_updateLoadTgtList.Length; i++)
             {
-                int id = _updateLoadTgtTmp[i];
-                _state[id].Target->RefCount--; // reset ref count
-                this.LoadFile(id);
-                _loadWaitingQueueNum++;
-#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
-                sb.Append($"   loadning queue: {id} is pending.\n");
-#endif
+                int id = _updateLoadTgtList[i];
+                sb.Append($"   Loadning queue: {id} is pending.\n");
             }
-            _updateLoadTgtTmp.Clear();
-
-#if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE
+            for(int i=0; i<_updateUnLoadTgtList.Length; i++)
+            {
+                int id = _updateUnLoadTgtList[i];
+                sb.Append($"   UnLoadning queue: {id} is pending.\n");
+            }
             if (sb.Length > 0)
             {
                 Debug.Log(" >> AsyncTextFileLoader.Update() >> \n"

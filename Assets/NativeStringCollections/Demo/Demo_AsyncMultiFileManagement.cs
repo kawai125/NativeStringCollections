@@ -42,9 +42,6 @@ namespace NativeStringCollections.Demo
         public TMP_Dropdown dropdownDataSize;
         private List<int> _dataSizeList;
 
-        public TMP_Dropdown dropdownDecodeBlockSize;
-        private List<int> _decodeBlockSizeList;
-
         public Slider generateProgressSlider;
 
         public TMP_Text generateTime;
@@ -107,7 +104,6 @@ namespace NativeStringCollections.Demo
 
             // swich loader mode
             _loader.FlushLoadJobs = flushing.isOn;
-            _loader.BlockSize = _decodeBlockSizeList[dropdownDecodeBlockSize.value];
             _loader.MaxJobCount = _maxJobList[dropdownMaxJob.value];
 
             // update loader
@@ -194,33 +190,11 @@ namespace NativeStringCollections.Demo
                 dropdownDataSize.value = 0;
             }
 
-            _decodeBlockSizeList = new List<int>
+
+            _maxJobList = new List<int>
             {
-                64, 256, 1024, 2048, 4096, 8192,
-                16384, 32768, 65536, 131072, 262144,
+                1, 2, 3, 4, 6, 8, 12, 16, 24
             };
-
-            if (dropdownDecodeBlockSize)
-            {
-                dropdownDecodeBlockSize.ClearOptions();
-
-                var drop_menu = new List<string>();
-                foreach (var s in _decodeBlockSizeList)
-                {
-                    drop_menu.Add(s.ToString());
-                }
-                dropdownDecodeBlockSize.AddOptions(drop_menu);
-                dropdownDecodeBlockSize.value = 3;
-            }
-
-            _maxJobList = new List<int>();
-            _maxJobList.Add(1);
-            _maxJobList.Add(2);
-            _maxJobList.Add(4);
-            _maxJobList.Add(8);
-            _maxJobList.Add(12);
-            _maxJobList.Add(16);
-            _maxJobList.Add(24);
 
             if (dropdownMaxJob)
             {
