@@ -2,14 +2,16 @@
 
 ## Introduction
 The toolset to parse generic text files using C# JobSystem on Unity.  
-[解説記事(日本語)はこちら](https://qiita.com/kawai125/items/13390f25700dd89c0f2e)
+解説記事(日本語)はこちら:  
+  [JobSystem編](https://qiita.com/kawai125/items/13390f25700dd89c0f2e)  
+  [Burst編](https://qiita.com/kawai125/items/540dd8e5d2b4c7c1fa3b)
 
 ## Environment
 This library was tested in the below system.
 
-- Windows10 20H2 19042.804
-- Unity 2019.4.20f1
+- Unity 2019.4.24f1
   - Collections 0.9.0-preview.6
+  - Burst 1.4.7
 
 
 ## Demo scene
@@ -20,13 +22,208 @@ This library was tested in the below system.
 - multiple files & multiple data users demo:  
 `/Assets/NativeStringCollections/Demo/Scenes/Demo_AsyncMultiFileManagement.unity`
 
+## Performance
+
+target file: 500k charactors (with noise and Base64 encoded external data, total 590k lines & 37MB size).  
+  The sample file generator was implemented in demo scenes.
+
+measured environment:
+  - Windows10
+  - Ryzen5 3600X
+  - GTX 1070
+  - NVMe SSD (PCIe Gen3 x4)
+
+(1) single file loading performance:
+
+|condition|Time [ms]|
+|:-|-:|
+|C# standard: File.ReadAllLines()|710 ~ 850|
+|ITextFileParser without Burst|460 ~ 480|
+|ITextFileParser with Burst|240 ~ 250|
+
+(2) parallel file loading performance:
+
+|# of Parallel Jobs|Time [ms] with Burst|Time [ms] without Burst|
+|-:|-:|-:|
+|1|240 ~ 250|460 ~ 480|
+|2|245 ~ 270|460 ~ 500|
+|3|245 ~ 275|470 ~ 540|
+|4|255 ~ 290|500 ~ 580|
+|6|270 ~ 350|550 ~ 650|
+|8|300 ~ 390|600 ~ 700|
+
+## Usage
+
+```C#
+using NativeStringCollections;
+
+public class TextData : ITextFileParser
+{
+    NativeList<DataElement> Data;
+
+    public void Init()
+    {
+        /* initialize class. called at once after new(). */
+        /* managed types can be used here because this function called in main thread. */
+    }
+
+    public void Clear()
+    {
+        /* preparing to parse. called at once before start calling ParseLines(). */
+    }
+
+    public bool ParseLines(NativeStringList lines)
+    {
+        for(int i=0; i<lines.Length; i++)
+        {
+            var line = lines[i];
+            /* parse line. return true to read next block. */
+            /* if you returned false, calling ParseLines() will be stopped and jump to PostReadProc(). */
+        }
+    }
+
+    public void PostReadProc()
+    {
+        /* post reading process. called at once after calling ParseLines(). */
+    }
+
+    public void UnLoad()
+    {
+        /* write somethong to do for unloading data. */
+    }
+}
+
+public class Hoge : MonoBehaviour
+{
+    AsyncTextFileReader<TextData> reader;
+
+    void Start() { reader = new AsyncTextFileReader<TextData>(Allocator.Persistent); }
+
+    void OnClickLoadFile()
+    {
+        // ordering to Load file. (give Encoding if necessarily)
+        reader.Encoding = Encoding.UTF8;
+        reader.LoadFile(path);
+    }
+
+    void Update()
+    {
+        // it can display progress. (Read, Length field is int by BlockSize unit)
+        var info = reader.GetState
+        float progress = (float)info.Read / info.Length;
+
+        // call Complete() when the job finished.
+        if(reader.JobState == ReadJobState.WaitForCallingComplete)
+        {
+            reader.Complete();
+
+            // it can display the elapsed time [ms] for loading file.
+            double delay = reader.GetState.Delay;
+            Debug.Log($" file loading completed. time = {delay.ToString("F2")} [ms].");
+
+            // something to do with loaded data.
+            var data = reader.Data;
+        }
+    }
+
+    void OnDestroy()
+    {
+        // calling Dispose() of data class. there are no ordering to dispose reader and loaded data.
+        var data = reader.Data;  
+        reader.Dispose();
+
+        data.Dispose();
+    }
+}
+```
+
+more detailed sample for `ITextFileParser.ParseLines()` is shown in below.
+
+```C#
+using NativeStringCollections;
+
+public class TextData : ITextFileParser
+{
+    public NativeList<DataElement> Data;
+
+    private NativeStringList mark_list;
+    private StringEntity check_mark;
+
+    // if you want to use string in parse process,
+    // add string into NativeStringList or NativeList<Char16> in Init().
+    public void Init()
+    {
+        Data = new NativeList<DataElement>(Allocator.Persistent);
+        mark_list = new NativeStringList(Allocator.Persistent);
+
+        mark_list.Add("STRONG");
+        mark_list.Add("Normal")
+
+        // to pick StringEntity from NativeStringList, it must be after all data were inputed into NativeStringList.
+        // (or set Capacity enough to large to contain all elements at first.)
+        // if you access StringEntity after buffer reallocating in NativeStringList, it causes crash by invalid memory access.
+        check_mark = mark_list[0];
+    }
+
+    // LF and CR were parsed and the results were input into NativeStringList.
+    // use it as similar to List<string>.
+    public bool ParseLines(NativeStringList lines)
+    {
+        bool continueRead = true;
+        for(int i=0; i<lines.Length; i++)
+        {
+            var line = lines[i];
+            continueRead = this.ParseLineImpl(line);
+        }
+        return true;
+    }
+    private bool ParseLineImpl(ReadOnlyStringEntity line)
+    {
+        // this list recieves the result of StringEntity.Split().
+        var str_list = new NativeList<ReadOnlyStringEntity>(Allocator.Temp);
+
+        // in the case of input line = "CharaName_STRONG,11,64,15.7,1.295e+3" as CSV,
+        // you can parse as shown in below.
+        line.split(',', str_list);
+
+        var name = str_list[0];
+
+        bool success = true;
+        success = success && str_list[1].TryParse(out long ID);
+        success = success && str_list[2].TryParse(out int HP);
+        success = success && str_list[3].TryParse(out float Attack);
+        success = success && str_list[4].TryParse(out double Speed);
+
+        int mark_index = name.IndexOf(check_mark);  // search "STRONG" in `name`
+        if(mark_index >= 0)
+        {
+            /* specified treat for "STRONG" charactor. */
+        }
+
+        str_list.Dispose()
+
+        // check to parse the line correctly or not.
+        if(!success)
+            return false;  // failed to parse. abort.
+
+        Data.Add(new DataElement(ID, HP, Attack, Speed));
+        return true;  // success to parse. go next line.
+    }
+}
+```
+
+## Usage for Burst optimization
+
+In this library, the UInt16 based struct `Char16` is used instead of System.Char.  
+Thus, you can use [Burst function pointers](https://docs.unity3d.com/Packages/com.unity.burst@1.4/manual/docs/AdvancedUsages.html#function-pointers) to optimize your `ITextFileParser` class.
+
 ## API
 
-- namespace
+#### ▽namespace
 
   All implementations are written in the namespace `NativeStringCollections`
 
-- job scheduler
+#### ▽job scheduler
 
 ```C#
 class AsyncTextFileReader<T>  // for single file
@@ -55,11 +252,12 @@ namespace NativeStringCollections
         void Clear();
 
         /// <summary>
-        /// when you returned 'false', the AsyncTextFileLoader discontinue calling the 'ParseLine()' and jump to calling 'PostReadProc()'.
+        /// when you returned 'false', the AsyncTextFileLoader discontinue calling the 'ParseLines()'
+        /// and jump to calling 'PostReadProc()'.
         /// </summary>
-        /// <param name="line">the string of a line.</param>
+        /// <param name="lines"></param>
         /// <returns>continue reading lines or not.</returns>
-        bool ParseLine(ReadOnlyStringEntity line);
+        bool ParseLines(NativeStringList lines);
 
         /// <summary>
         /// called every time at last on reading file.
@@ -74,7 +272,7 @@ namespace NativeStringCollections
 }
 ```
 
-- string like NativeContainer
+#### ▽string like NativeContainer
 
 ```C#
 struct NativeStringList
@@ -82,7 +280,7 @@ struct StringEntity
 struct ReadOnlyStringEntity
 ```
 
-The `NativeStringList` is a jagged array container similar to `List<string>`, using `NativeList<char>` internally.  
+The `NativeStringList` is a jagged array container similar to `List<string>`, using `NativeList<Char16>` internally.  
 `StringEntity` and `ReadOnlyStringEntity` are the slice view of `NativeStringList`.
 
 **Note:** Because of reallocation of internal buffer, calling `NativeStringList.Add()` function makes `StringEntity` to invalid reference.  
@@ -99,7 +297,7 @@ where T : int32, int64, float32, or float64
 
 The conversion accuracy compared with `System.T.Parse()` is shown in below:
 
-|type|error|
+|type|relative error|
 |:--|:--|
 |int32, int64, and float32| no differ |
 |float64| < 1.0e-15 |
@@ -116,7 +314,7 @@ struct NativeBase64Encoder
 struct NativeBase64Decoder
 ```
 
-- manipulation functions
+#### ▽manipulation functions
 
 ```C#
 // Split()
@@ -135,7 +333,31 @@ StringEntity slice_result = StringEntity.Slice(begin, end);
 These modification functions are available.
 These functions generate `StringEntity` as new slice.
 
-- debug mode
+#### ▽Utility for using Burst Function Pointers
+
+In Burst Function Pointers, NativeContainer cannot be used.
+To workaround this probrem, UnsafeReference utility structs and functions are provided.
+
+```C#
+using NativeStringCollections;
+using NativeStringCollections.Utility;
+
+// for container
+UnsafeRefToNativeList<T> 
+    ref_to_native_list = NativeList<T>.GetUnsafeRef();
+UnsafeRefToNativeStringList 
+    ref_to_native_string_list = NativeStringList.GetUnsafeRef();
+UnsafeRefToNativeJaggedList<T> 
+    ref_to_native_jagged_list = NativeJaggedList<T>.GetUnsafeRef();
+
+// for Base64 converter
+UnsafeRefToNativeBase64Encoder
+    ref_to_base64_encoder = NativeBase64Encoder.GetUnsafeRef();
+UnsafeRefToNativeBase64Decoder
+    ref_to_base64_decoder = NativeBase64Decoder.GetUnsafeRef();
+```
+
+#### ▽debug mode
 
 ```C#
 var reader = new AsyncTextFileReader<T>(Allocator.Persistent);
@@ -151,9 +373,3 @@ When use the function `LoadFileInMainThread()`, all functions are processed in t
 
 In this condition, managed objects such as `(obj).ToString()`, `StringBuilder`, and `Debug.Log()` can be used
 in `Clear()`, `ParseLine()`, `PostReadProc()`, and `UnLoad()` functions of `ITextFileParser`.
-
-## Limitation
-When Loading 2 files or more in same timing using `AsyncTextFileLoader<T>`, that causes laoding files with large delay.  
-N files loading may be slown as N times slower. (total time for parse file is same to when running only 1 job.)  
-I cannot found the cause of this delay.  
-Is it memory transfer bound ?
