@@ -1,7 +1,8 @@
 # NativeStringCollections
 
 ## Introduction
-The toolset to parse generic text files using C# JobSystem on Unity.  
+The toolset to parse generic text files using C# JobSystem on Unity.
+
 解説記事(日本語)はこちら:  
   [JobSystem編](https://qiita.com/kawai125/items/13390f25700dd89c0f2e)  
   [Burst編](https://qiita.com/kawai125/items/540dd8e5d2b4c7c1fa3b)
@@ -37,9 +38,9 @@ measured environment:
 
 |condition|Time [ms]|
 |:-|-:|
-|C# standard: File.ReadAllLines()|710 ~ 850|
-|ITextFileParser without Burst|460 ~ 480|
-|ITextFileParser with Burst|240 ~ 250|
+|C# standard: `File.ReadAllLines()`|710 ~ 850|
+|`ITextFileParser` (without Burst)|460 ~ 480|
+|`ITextFileParser` (with Burst)|240 ~ 250|
 
 (2) parallel file loading performance:
 
@@ -219,11 +220,11 @@ Thus, you can use [Burst function pointers](https://docs.unity3d.com/Packages/co
 
 ## API
 
-#### ▽namespace
+### ▽namespace
 
   All implementations are written in the namespace `NativeStringCollections`
 
-#### ▽job scheduler
+### ▽job scheduler
 
 ```C#
 class AsyncTextFileReader<T>  // for single file
@@ -272,7 +273,7 @@ namespace NativeStringCollections
 }
 ```
 
-#### ▽string like NativeContainer
+### ▽string like NativeContainer
 
 ```C#
 struct NativeStringList
@@ -314,7 +315,7 @@ struct NativeBase64Encoder
 struct NativeBase64Decoder
 ```
 
-#### ▽manipulation functions
+### ▽manipulation functions
 
 ```C#
 // Split()
@@ -333,7 +334,7 @@ StringEntity slice_result = StringEntity.Slice(begin, end);
 These modification functions are available.
 These functions generate `StringEntity` as new slice.
 
-#### ▽Utility for using Burst Function Pointers
+### ▽Utility for using Burst Function Pointers
 
 In Burst Function Pointers, NativeContainer cannot be used.
 To workaround this probrem, UnsafeReference utility structs and functions are provided.
@@ -357,7 +358,7 @@ UnsafeRefToNativeBase64Decoder
     ref_to_base64_decoder = NativeBase64Decoder.GetUnsafeRef();
 ```
 
-#### ▽debug mode
+### ▽debug mode
 
 ```C#
 var reader = new AsyncTextFileReader<T>(Allocator.Persistent);
