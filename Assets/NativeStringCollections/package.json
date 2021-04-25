@@ -1,0 +1,26 @@
+{
+	"name": "com.kawai125.NativeStringCollections",
+	"displayName": "NativeStringCollections",
+	"version": "1.0.0",
+	"unity": "2019.4",
+	"discription": "The toolset to parse generic text files using C# JobSystem and Burst.",
+	"author": {
+		"name": "kawai125",
+		"url": "https://github.com/kawai125"
+	},
+	
+	"keywords": [
+	    "text file"
+	],
+	
+	"dependencies": {
+	},
+	
+	"samples": [
+	    {
+			"displayName": "Demo Scenes",
+			"description": "Single file/Multipul files loading Demo Scenes.",
+			"path": "Demo"
+		}
+	]
+}
