@@ -214,7 +214,7 @@ namespace NativeStringCollections.Demo
         private void InitializeFileList()
         {
 #if UNITY_EDITOR
-            string path = Application.dataPath + "/../Assets/Demo/Temp/";
+            string path = Application.dataPath + "/../Assets/NativeStringCollections/Samples/Temp/";
 #else
             string path = Application.dataPath + "/Demo/";
 #endif

@@ -102,7 +102,7 @@ public class Demo_ReadingLargeFile : MonoBehaviour
     {
 #if UNITY_EDITOR
         NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
-        _path = Application.dataPath + "/../Assets/Demo/Temp/";
+        _path = Application.dataPath + "/../Assets/NativeStringCollections/Samples/Temp/";
 #else
         _path = Application.dataPath + "/Demo/";
 #endif

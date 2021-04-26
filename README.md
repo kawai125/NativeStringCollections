@@ -1,7 +1,7 @@
 # NativeStringCollections
 
 ## Introduction
-The toolset to parse generic text files using C# JobSystem on Unity.
+The toolset to parse generic text files using C# JobSystem and Burst on Unity.
 
 解説記事(日本語)はこちら:  
   [JobSystem編](https://qiita.com/kawai125/items/13390f25700dd89c0f2e)  
@@ -18,23 +18,23 @@ This library was tested in the below system.
 ## Demo scene
 
 - single file & single data user demo:  
-`/Assets/NativeStringCollections/Demo/Scenes/Demo_ReadingLargeFile.unity`
+`/Assets/NativeStringCollections/Scenes/Demo_ReadingLargeFile.unity`
 
 - multiple files & multiple data users demo:  
-`/Assets/NativeStringCollections/Demo/Scenes/Demo_AsyncMultiFileManagement.unity`
+`/Assets/NativeStringCollections/Scenes/Scenes/Demo_AsyncMultiFileManagement.unity`
 
 ## Performance
 
-target file: 500k charactors (with noise and Base64 encoded external data, total 590k lines & 37MB size).  
+Target file: 500k charactors (with noise and Base64 encoded external data, total 590k lines & 37MB size).  
   The sample file generator was implemented in demo scenes.
 
-measured environment:
+Measured environment:
   - Windows10
   - Ryzen5 3600X
   - GTX 1070
   - NVMe SSD (PCIe Gen3 x4)
 
-(1) single file loading performance:
+(1) Single file loading performance:
 
 |condition|Time [ms]|
 |:-|-:|
@@ -42,7 +42,7 @@ measured environment:
 |`ITextFileParser` (without Burst)|460 ~ 480|
 |`ITextFileParser` (with Burst)|240 ~ 250|
 
-(2) parallel file loading performance:
+(2) Parallel file loading performance:
 
 |# of Parallel Jobs|Time [ms] with Burst|Time [ms] without Burst|
 |-:|-:|-:|
@@ -138,7 +138,7 @@ public class Hoge : MonoBehaviour
 }
 ```
 
-more detailed sample for `ITextFileParser.ParseLines()` is shown in below.
+More detailed sample for `ITextFileParser.ParseLines()` is shown in below.
 
 ```C#
 using NativeStringCollections;
@@ -215,16 +215,16 @@ public class TextData : ITextFileParser
 
 ## Usage for Burst optimization
 
-In this library, the UInt16 based struct `Char16` is used instead of System.Char.  
+In this library, the UInt16 based struct `Char16` is used instead of `System.Char` .  
 Thus, you can use [Burst function pointers](https://docs.unity3d.com/Packages/com.unity.burst@1.4/manual/docs/AdvancedUsages.html#function-pointers) to optimize your `ITextFileParser` class.
 
 ## API
 
-### ▽namespace
+### ▽Namespace
 
   All implementations are written in the namespace `NativeStringCollections`
 
-### ▽job scheduler
+### ▽Job scheduler
 
 ```C#
 class AsyncTextFileReader<T>  // for single file
@@ -273,7 +273,7 @@ namespace NativeStringCollections
 }
 ```
 
-### ▽string like NativeContainer
+### ▽String like NativeContainer
 
 ```C#
 struct NativeStringList
@@ -287,7 +287,7 @@ The `NativeStringList` is a jagged array container similar to `List<string>`, us
 **Note:** Because of reallocation of internal buffer, calling `NativeStringList.Add()` function makes `StringEntity` to invalid reference.  
 (The tracer system is also implemented on the macro "ENABLE_UNITY_COLLECTIONS_CHECKS".)
 
-- parse functions
+### ▽Parse functions
 
 ```C#
 bool StringEntity.TryParse(out T value)
@@ -304,9 +304,9 @@ The conversion accuracy compared with `System.T.Parse()` is shown in below:
 |float64| < 1.0e-15 |
 |(Hex input)|no differ|
 
-tested in thousands random strings.
+Tested in thousands random strings.
 
-(see `/Assets/NativeStringCollections/Tests/EditMode/Editor/Test_StringParser.cs` for more detail)
+(see `/Assets/NativeStringCollections/Tests/EditMode/Editor/Test_StringParser.cs` for more details.)
 
 The converters between Base64 encoded string and byte stream are also available.
 
@@ -344,11 +344,11 @@ using NativeStringCollections;
 using NativeStringCollections.Utility;
 
 // for container
-UnsafeRefToNativeList<T> 
+UnsafeRefToNativeList<T>
     ref_to_native_list = NativeList<T>.GetUnsafeRef();
-UnsafeRefToNativeStringList 
+UnsafeRefToNativeStringList
     ref_to_native_string_list = NativeStringList.GetUnsafeRef();
-UnsafeRefToNativeJaggedList<T> 
+UnsafeRefToNativeJaggedList<T>
     ref_to_native_jagged_list = NativeJaggedList<T>.GetUnsafeRef();
 
 // for Base64 converter
@@ -358,7 +358,7 @@ UnsafeRefToNativeBase64Decoder
     ref_to_base64_decoder = NativeBase64Decoder.GetUnsafeRef();
 ```
 
-### ▽debug mode
+### ▽Debug mode
 
 ```C#
 var reader = new AsyncTextFileReader<T>(Allocator.Persistent);
