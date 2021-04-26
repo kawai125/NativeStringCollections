@@ -18,13 +18,5 @@
 		"com.unity.mathematics": "1.2.1",
 		"com.unity.collections": "0.9.0-preview.6",
 		"com.unity.burst": "1.4.7"
-	},
-
-	"samples": [
-	    {
-			"displayName": "Demo Scenes",
-			"description": "Single file/Multipul files Loading Sample Scenes.",
-			"path": "Samples/Demo"
-		}
-	]
+	}
 }

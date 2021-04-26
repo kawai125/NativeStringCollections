@@ -14,14 +14,16 @@ This library was tested in the below system.
   - Collections 0.9.0-preview.6
   - Burst 1.4.7
 
+## Git Path for Unity Package Manager
+[https://github.com/kawai125/NativeStringCollections.git?path=Assets/NativeStringCollections](https://github.com/kawai125/NativeStringCollections.git?path=Assets/NativeStringCollections)
 
 ## Demo scene
 
 - single file & single data user demo:  
-`/Assets/NativeStringCollections/Scenes/Demo_ReadingLargeFile.unity`
+`/Assets/NativeStringCollections/Samples/Demo/Scenes/Demo_ReadingLargeFile.unity`
 
 - multiple files & multiple data users demo:  
-`/Assets/NativeStringCollections/Scenes/Scenes/Demo_AsyncMultiFileManagement.unity`
+`/Assets/NativeStringCollections/Samples/Demo/Scenes/Demo_AsyncMultiFileManagement.unity`
 
 ## Performance
 
