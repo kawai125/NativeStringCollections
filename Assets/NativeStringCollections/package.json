@@ -8,19 +8,19 @@
 		"name": "kawai125",
 		"url": "https://github.com/kawai125"
 	},
-	
+
 	"keywords": [
 	    "text file"
 	],
-	
+
 	"dependencies": {
 	},
-	
+
 	"samples": [
 	    {
 			"displayName": "Demo Scenes",
 			"description": "Single file/Multipul files loading Demo Scenes.",
-			"path": "Demo"
+			"path": "../Demo"
 		}
 	]
 }

@@ -326,7 +326,7 @@ public class Demo_StandardCSharpReader : MonoBehaviour
     {
 #if UNITY_EDITOR
         NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
-        _path = Application.dataPath + "/../Assets/NativeStringCollections/Demo/Temp/";
+        _path = Application.dataPath + "/../Assets/Demo/Temp/";
 #else
         _path = Application.dataPath + "/Demo/";
 #endif

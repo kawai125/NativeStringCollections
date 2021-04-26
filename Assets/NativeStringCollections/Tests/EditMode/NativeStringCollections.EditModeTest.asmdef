@@ -1,5 +1,5 @@
 {
-    "name": "EditModeTest",
+    "name": "NativeStringCollections.EditModeTest",
     "references": [
         "GUID:a174bbf42f7a2ee4ca9bae738dba47ed",
         "GUID:e0cd26848372d4e5c891c569017e11f1",
