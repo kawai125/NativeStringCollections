@@ -22,9 +22,9 @@
 
 	"samples": [
 	    {
-			"displayName": "Samples",
+			"displayName": "Demo Scenes",
 			"description": "Single file/Multipul files Loading Sample Scenes.",
-			"path": "Samples"
+			"path": "Samples/Demo"
 		}
 	]
 }
