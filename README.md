@@ -177,6 +177,7 @@ public class TextData : ITextFileParser
         {
             var line = lines[i];
             continueRead = this.ParseLineImpl(line);
+            if(!continueRead) return false;  // abort to read
         }
         return true;
     }
