@@ -18,6 +18,8 @@ namespace NativeStringCollections.Demo
 
         public void OnToggleBurstSwitch()
         {
+            if (loader is null) return;
+
             if(toggleBurstParseLines.value != 0)
             {
                 loader.Data.EnableBurst = true;

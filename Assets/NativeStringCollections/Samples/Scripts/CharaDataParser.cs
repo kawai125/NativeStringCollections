@@ -458,6 +458,174 @@ namespace NativeStringCollections.Demo
         }
     }
 
+#if ENABLE_BURST_DIRECT_CALL
+    // Burst function implementation (Burst direct-call: requires Burst 1.6 or later)
+    [BurstCompile]
+    public unsafe static class ParserFuncBurst
+    {
+        [BurstCompile]
+        public static void ParseLines(ref CharaDataParser.DataPack pack,
+                                      ref UnsafeRefToNativeStringList lines,
+                                      out bool success)
+        {
+            success = true;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                success = ParseLineImpl(ref pack, lines[i]);
+                if (!success) return;
+            }
+        }
+
+        [BurstCompile]
+        public static void PostReadProc(ref CharaDataParser.DataPack pack)
+        {
+            //--- check reading was success or not
+            if (pack.read_mode != CharaDataParser.ReadMode.Body) return;
+
+            //--- store Base64 ext data
+            int index_len = pack.b64_decoded_bytes.Length / UnsafeUtility.SizeOf<int>();
+            if (pack.b64_decoded_bytes.Length % UnsafeUtility.SizeOf<int>() != 0)
+            {
+                pack.read_mode = CharaDataParser.ReadMode.Base64DataError;
+                return;
+            }
+            pack.IndexSeq.ResizeUninitialized(index_len);
+            UnsafeUtility.MemCpy(pack.IndexSeq.GetUnsafePtr(),
+                                 pack.b64_decoded_bytes.GetUnsafePtr(),
+                                 pack.b64_decoded_bytes.Length);
+            pack.b64_decoded_bytes.Clear();
+
+            //--- check Base64 ext data
+            if (pack.IndexSeq.Length != pack.Data.Length)
+            {
+                pack.read_mode = CharaDataParser.ReadMode.PostProcError;
+                return;
+            }
+            for (int i = 0; i < pack.IndexSeq.Length; i++)
+            {
+                if (pack.IndexSeq[i] != pack.Data[i].ID)
+                {
+                    pack.read_mode = CharaDataParser.ReadMode.PostProcError;
+                    return;
+                }
+            }
+            //--- overwright CharaData.Name StringEntity to _name from _tmp_name.
+            //    (the reference of CharaData.Name maybe became invalid because of reallocating in _tmp.)
+            pack.name.Clear();
+            for (int i = 0; i < pack.tmp_name.Length; i++)
+            {
+                pack.name.Add(pack.tmp_name[i]);
+                var chara = pack.Data[i];
+                chara.Name = pack.name.Last;
+                pack.Data[i] = chara;
+            }
+
+            pack.read_mode = CharaDataParser.ReadMode.Complete;
+            return;
+        }
+
+        private static bool ParseLineImpl(ref CharaDataParser.DataPack pack, ReadOnlyStringEntity line)
+        {
+            pack.Lines++;
+            if (line.Length < 1) return true;
+
+            line.Split('\t', pack.str_list);
+
+            //--- check data block
+            if (pack.str_list.Length >= 2 && pack.str_list[0] == pack.mark_tag)
+            {
+                if (pack.str_list[1] == pack.mark_header) pack.read_mode = CharaDataParser.ReadMode.Header;
+                else if (pack.str_list[1] == pack.mark_ext) pack.read_mode = CharaDataParser.ReadMode.ExtData;
+                else if (pack.str_list[1] == pack.mark_ext_end) pack.read_mode = CharaDataParser.ReadMode.None;
+                else if (pack.str_list[1] == pack.mark_body)
+                {
+                    //--- check header info was read correctly or not
+                    if (pack.N <= 0 || pack.D <= 0 || pack.R < 0.0 || pack.R >= 1.0)
+                    {
+                        pack.read_mode = CharaDataParser.ReadMode.HeaderError;
+                        return false;
+                    }
+                    pack.read_mode = CharaDataParser.ReadMode.Body;
+                }
+                return true;
+            }
+            if (pack.read_mode == CharaDataParser.ReadMode.None) return true;
+
+            //--- ignore comment line
+            if (pack.str_list[0].Length >= 1 && pack.str_list[0].Slice(0, 1) == pack.mark_comment)
+            {
+                return true;
+            }
+
+            //--- store data
+            if (pack.read_mode == CharaDataParser.ReadMode.Header)
+            {
+                bool success = true;
+                // using normal TryParse() for large scope optimization of BurstCompile
+                if (pack.str_list[0] == pack.mark_n_total) { success = pack.str_list[1].TryParse(out pack.N); }
+                else if (pack.str_list[0] == pack.mark_d) { success = pack.str_list[1].TryParse(out pack.D); }
+                else if (pack.str_list[0] == pack.mark_r) { success = pack.str_list[1].TryParse(out pack.R); }
+
+                if (!success)
+                {
+                    pack.read_mode = CharaDataParser.ReadMode.HeaderError;
+                    return false;
+                }
+            }
+            else if (pack.read_mode == CharaDataParser.ReadMode.ExtData)
+            {
+                if (pack.str_list.Length > 1)
+                {
+                    // must be 1 element in line
+                    pack.read_mode = CharaDataParser.ReadMode.Base64DataError;
+                    return false;
+                }
+                else if (pack.str_list.Length == 1)
+                {
+                    bool success = pack.b64_decoder.GetBytes(pack.b64_decoded_bytes, pack.str_list[0]);
+                    if (!success)
+                    {
+                        pack.read_mode = CharaDataParser.ReadMode.Base64DataError;
+                        return false;
+                    }
+                }
+            }
+            else if (pack.read_mode == CharaDataParser.ReadMode.Body)
+            {
+                if (pack.str_list.Length < 6) return true;
+
+                var tmp = new CharaData();
+                bool success = true;
+                // using normal TryParse() for large scope optimization of BurstCompile
+                success = success && pack.str_list[0].TryParse(out tmp.ID);
+                success = success && pack.str_list[2].TryParse(out tmp.HP);
+                success = success && pack.str_list[3].TryParse(out tmp.MP);
+                success = success && pack.str_list[4].TryParse(out tmp.Attack);
+                success = success && pack.str_list[5].TryParse(out tmp.Defence);
+
+                if (!success)
+                {
+                    pack.read_mode = CharaDataParser.ReadMode.FormatError;
+                    return false;
+                }
+
+                pack.tmp_name.Add(pack.str_list[1]);
+                tmp.Name = pack.tmp_name.Last;
+
+                pack.Data.Add(tmp);
+
+                if (pack.Data.Length > pack.N)
+                {
+                    pack.read_mode = CharaDataParser.ReadMode.FormatError;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+#else
+    // Burst function pointer implementation
     [BurstCompile]
     public unsafe static class ParserFuncBurst
     {
@@ -673,5 +841,6 @@ namespace NativeStringCollections.Demo
             return;
         }
     }
+#endif
 }
 

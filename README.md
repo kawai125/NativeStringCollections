@@ -27,7 +27,7 @@ This library was tested in the below system.
 
 ## Performance
 
-Target file: 500k charactors (with noise and Base64 encoded external data, total 590k lines & 37MB size).  
+Target file: 500k charactors (with comment lines and Base64 encoded external data, total 590k lines & 37MB size).  
   The sample file generator was implemented in demo scenes.
 
 Measured environment:
@@ -220,6 +220,11 @@ public class TextData : ITextFileParser
 In this library, the UInt16 based struct `Char16` is used instead of `System.Char` .  
 Thus, you can use [Burst function pointers](https://docs.unity3d.com/Packages/com.unity.burst@1.4/manual/docs/AdvancedUsages.html#function-pointers) to optimize your `ITextFileParser` class.
 
+If you use Burst 1.6 or later, you can use [Burst direct-call.](https://docs.unity3d.com/Packages/com.unity.burst@1.6/manual/docs/CSharpLanguageSupport_Lang.html#directly-calling-burst-compiled-code)  
+It is easier to write code then Burst function pointers and has same features.
+
+(see `/Assets/NativeStringCollections/Samples/Scripts/CharaDataParser.cs` for sample.)
+
 ## API
 
 ### ▽Namespace
@@ -338,7 +343,7 @@ These functions generate `StringEntity` as new slice.
 
 ### ▽Utility for using Burst Function Pointers
 
-In Burst Function Pointers, NativeContainer cannot be used.
+In Burst Function Pointers, typical NativeContainer cannot be used because their safety system is implemented with managed object.  
 To workaround this probrem, UnsafeReference utility structs and functions are provided.
 
 ```C#
@@ -359,6 +364,10 @@ UnsafeRefToNativeBase64Encoder
 UnsafeRefToNativeBase64Decoder
     ref_to_base64_decoder = NativeBase64Decoder.GetUnsafeRef();
 ```
+
+Unfortunately, the other than `NativeList<T>` has no accessor to internal unsafe container.  
+If you want to use these container such as `NativeHashMap<Tkey, TValue>` or `NativeQueue<T>`,  
+you have to use compatible unsafe container such as `UnsafeHashMap<Tkey, TValue>` or `UnsafeRingQueue<T>` and copy data before/after calling Burst function pointers.
 
 ### ▽Debug mode
 
