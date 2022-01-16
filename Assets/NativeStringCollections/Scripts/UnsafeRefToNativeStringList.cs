@@ -92,6 +92,10 @@ namespace NativeStringCollections.Utility
         {
             this.Add((Char16*)entity.GetUnsafePtr(), entity.Length);
         }
+        public unsafe void Add(UnsafeRefToNativeList<Char16> str)
+        {
+            this.Add((Char16*)str.GetUnsafePtr(), str.Length);
+        }
 
         /// <summary>
         /// Get the index of the entity.

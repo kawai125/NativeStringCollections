@@ -370,6 +370,23 @@ Unfortunately, the other than `NativeList<T>` has no accessor to internal unsafe
 If you want to use these container such as `NativeHashMap<Tkey, TValue>` or `NativeQueue<T>`,  
 you have to use compatible unsafe container such as `UnsafeHashMap<Tkey, TValue>` or `UnsafeRingQueue<T>` and copy data before/after calling Burst function pointers.
 
+### ▽Utility for Sorting file paths
+The sort function which treats a digits part as an integer and sorts naturally is provided.
+
+```C#
+string[] paths = { /* paths */ };
+var sorted_paths = new List<string>();
+
+// sort file paths naturally
+FilePathUtility.Sort(paths, sorted_paths);
+
+// sort & filtering paths
+string filter = directly + "/file_00.dat";   // digit part "00" is treated as a place holder for integer value.
+FilePathUtility.Sort(paths, filter, sorted_paths);
+```
+
+(see `/Assets/NativeStringCollections/Tests/EditMode/Editor/Test_SortFilePaths.cs` for more details.)
+
 ### ▽Debug mode
 
 ```C#

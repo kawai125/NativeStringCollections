@@ -147,6 +147,14 @@ namespace NativeStringCollections.Utility
         {
             this.Add((T*)slice.GetUnsafePtr(), slice.Length);
         }
+        /// <summary>
+        /// specialize for UnsafeRefToNativeList<T>
+        /// </summary>
+        /// <param name="list"></param>
+        public unsafe void Add(UnsafeRefToNativeList<T> list)
+        {
+            this.Add((T*)list.GetUnsafePtr(), list.Length);
+        }
 
         /// <summary>
         /// Get the index of the slice.
