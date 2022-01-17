@@ -127,22 +127,6 @@ namespace NativeStringCollections
         {
             return val.GetReadOnly();
         }
-
-        public bool Equals(Char16* ptr, int Length)
-        {
-            this.CheckReallocate();
-            if (_len != Length) return false;
-
-            // pointing same target
-            if (_ptr == ptr) return true;
-
-            for (int i = 0; i < _len; i++)
-            {
-                if (_ptr[i] != ptr[i]) return false;
-            }
-
-            return true;
-        }
         public bool Equals(StringEntity entity)
         {
             this.CheckReallocate();
@@ -318,12 +302,10 @@ namespace NativeStringCollections
             }
             return ret;
         }
-        public NativeArray<Char16> ToNativeArray(Allocator alloc)
+        public NativeArray<Char16> AsArray()
         {
-            this.CheckReallocate();
-            var ret = new NativeArray<Char16>(_len, alloc);
-            UnsafeUtility.MemCpy(ret.GetUnsafePtr(), this.GetUnsafePtr(), UnsafeUtility.SizeOf<Char16>() * _len);
-            return ret;
+            var arr = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<Char16>(_ptr, _len, Allocator.None);
+            return arr;
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
@@ -354,7 +336,11 @@ namespace NativeStringCollections
 #endif
         }
 
-        public void* GetUnsafePtr() { return _ptr; }
+        public void* GetUnsafePtr()
+        {
+            this.CheckReallocate();
+            return _ptr;
+        }
     }
 
     public readonly unsafe struct ReadOnlyStringEntity :
@@ -398,10 +384,6 @@ namespace NativeStringCollections
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
-        public bool Equals(Char16* ptr, int Length)
-        {
-            return _entity.Equals(ptr, Length);
-        }
         public unsafe bool Equals(NativeJaggedArraySlice<Char16> slice)
         {
             return _entity.Equals(slice);
@@ -507,10 +489,6 @@ namespace NativeStringCollections
         public char[] ToArray()
         {
             return _entity.ToArray();
-        }
-        public NativeArray<Char16> ToNativeArray(Allocator alloc)
-        {
-            return _entity.ToNativeArray(alloc);
         }
         public void* GetUnsafePtr() { return _entity.GetUnsafePtr(); }
     }

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.1] - 2022-01-17
+- Refactored NativeJaggedArray<T> and NativeJaggedArraySlice<T>. now the IEquatable<T> is not required for them.
+
 ## [1.1.0] - 2022-01-17
 - Added utility functions for sorting file paths.
 

@@ -14,14 +14,10 @@ namespace NativeStringCollections
     using NativeStringCollections.Impl;
 
 
-    unsafe public interface IJaggedArraySliceBase<T> where T: unmanaged, IEquatable<T>
+    unsafe public interface IJaggedArraySliceBase<T> where T: unmanaged
     {
         int Length { get; }
         T this[int index] { get; }
-        bool Equals(NativeJaggedArraySlice<T> slice);
-        bool Equals(ReadOnlyNativeJaggedArraySlice<T> slice);
-        bool Equals(T* ptr, int Length);
-        int IndexOf(T key, int start);
         void* GetUnsafePtr();
     }
     public interface ISlice<T>
@@ -33,12 +29,8 @@ namespace NativeStringCollections
     public readonly unsafe struct NativeJaggedArraySlice<T> :
         IJaggedArraySliceBase<T>,
         IEnumerable<T>,
-        IEquatable<NativeJaggedArraySlice<T>>,
-        IEquatable<ReadOnlyNativeJaggedArraySlice<T>>,
-        IEquatable<IEnumerable<T>>, IEquatable<T>,
-        IEquatable<NativeList<T>>, IEquatable<NativeArray<T>>,
         ISlice<NativeJaggedArraySlice<T>>
-        where T: unmanaged, IEquatable<T>
+        where T: unmanaged
     {
         [NativeDisableUnsafePtrRestriction]
         internal readonly T* _ptr;
@@ -136,76 +128,6 @@ namespace NativeStringCollections
         {
             return val.GetReadOnlySlice();
         }
-
-        public bool Equals(T* ptr, int Length)
-        {
-            this.CheckReallocate();
-            if (_len != Length) return false;
-
-            // pointing same target
-            if (_ptr == ptr) return true;
-
-            for(int i=0; i<_len; i++)
-            {
-                if (!_ptr[i].Equals(ptr[i])) return false;
-            }
-
-            return true;
-        }
-        public bool Equals(NativeJaggedArraySlice<T> slice)
-        {
-            this.CheckReallocate();
-            return slice.Equals(_ptr, _len);
-        }
-        public bool Equals(ReadOnlyNativeJaggedArraySlice<T> slice)
-        {
-            this.CheckReallocate();
-            return slice.Equals(_ptr, _len);
-        }
-        public bool Equals(NativeList<T> list)
-        {
-            this.CheckReallocate();
-            return this.Equals((T*)list.GetUnsafePtr(), list.Length);
-        }
-        public bool Equals(NativeArray<T> array)
-        {
-            this.CheckReallocate();
-            return this.Equals((T*)array.GetUnsafePtr(), array.Length);
-        }
-        public bool Equals(IEnumerable<T> in_itr)
-        {
-            this.CheckReallocate();
-            return this.SequenceEqual<T>(in_itr);
-        }
-        public bool Equals(T rhs)
-        {
-            if (this.Length == 1 && _ptr->Equals(rhs)) return true;
-            return false;
-        }
-        public static bool operator ==(NativeJaggedArraySlice<T> lhs, NativeJaggedArraySlice<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(NativeJaggedArraySlice<T> lhs, NativeJaggedArraySlice<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(NativeJaggedArraySlice<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(NativeJaggedArraySlice<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(NativeJaggedArraySlice<T> lhs, IEnumerable<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(NativeJaggedArraySlice<T> lhs, IEnumerable<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(NativeJaggedArraySlice<T> lhs, NativeList<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(NativeJaggedArraySlice<T> lhs, NativeList<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(NativeJaggedArraySlice<T> lhs, NativeArray<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(NativeJaggedArraySlice<T> lhs, NativeArray<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(NativeJaggedArraySlice<T> lhs, T rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(NativeJaggedArraySlice<T> lhs, T rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(IEnumerable<T> lhs, NativeJaggedArraySlice<T> rhs) { return rhs.Equals(lhs); }
-        public static bool operator !=(IEnumerable<T> lhs, NativeJaggedArraySlice<T> rhs) { return !rhs.Equals(lhs); }
-        public static bool operator ==(NativeList<T> lhs, NativeJaggedArraySlice<T> rhs) { return rhs.Equals(lhs); }
-        public static bool operator !=(NativeList<T> lhs, NativeJaggedArraySlice<T> rhs) { return !rhs.Equals(lhs); }
-        public static bool operator ==(NativeArray<T> lhs, NativeJaggedArraySlice<T> rhs) { return rhs.Equals(lhs); }
-        public static bool operator !=(NativeArray<T> lhs, NativeJaggedArraySlice<T> rhs) { return !rhs.Equals(lhs); }
-        public static bool operator ==(T lhs, NativeJaggedArraySlice<T> rhs) { return rhs.Equals(lhs); }
-        public static bool operator !=(T lhs, NativeJaggedArraySlice<T> rhs) { return !rhs.Equals(lhs); }
-        public override bool Equals(object obj)
-        {
-            return obj is NativeJaggedArraySlice<T> && ((IJaggedArraySliceBase<T>)obj).Equals(_ptr, _len);
-        }
         public override int GetHashCode()
         {
             this.CheckReallocate();
@@ -215,18 +137,6 @@ namespace NativeStringCollections
                 hash = hash ^ this[i].GetHashCode();
             }
             return hash;
-        }
-
-        public int IndexOf(T key, int start = 0 )
-        {
-            this.CheckReallocate();
-            this.CheckElemIndex(start);
-
-            for(int i=start; i<_len; i++)
-            {
-                if (_ptr[i].Equals(key)) return i;
-            }
-            return -1;
         }
 
         public override string ToString()
@@ -270,16 +180,14 @@ namespace NativeStringCollections
             }
             return ret;
         }
-        public NativeArray<T> ToNativeArray(Allocator alloc)
+        public NativeArray<T> AsArray()
         {
-            this.CheckReallocate();
-            var ret = new NativeArray<T>(_len, alloc);
-            UnsafeUtility.MemCpy(ret.GetUnsafePtr(), this.GetUnsafePtr(), UnsafeUtility.SizeOf<T>() * _len);
-            return ret;
+            var arr = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(_ptr, _len, Allocator.None);
+            return arr;
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        private void CheckElemIndex(int index)
+        internal void CheckElemIndex(int index)
         {
             if (index < 0 || _len <= index)
             {
@@ -288,14 +196,14 @@ namespace NativeStringCollections
             }
         }
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        private void CheckSliceRange(int begin, int end)
+        internal void CheckSliceRange(int begin, int end)
         {
             int new_len = end - begin;
             if (end > _len) throw new ArgumentOutOfRangeException($"invalid range. end = {end} <= Length = {_len}");
             if (new_len < 0) throw new ArgumentOutOfRangeException($"invalid range. begin = {begin} > end = {end}.");
         }
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-        private void CheckReallocate()
+        internal void CheckReallocate()
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             if(_gen_ptr == null && _gen_entity == -1) return;  // ignore case for NativeJaggedArraySliceGeneratorExt
@@ -306,20 +214,20 @@ namespace NativeStringCollections
 #endif
         }
 
-        public void* GetUnsafePtr() { return _ptr; }
+        public void* GetUnsafePtr()
+        {
+            this.CheckReallocate();
+            return _ptr; 
+        }
     }
     [StructLayout(LayoutKind.Sequential)]
     public readonly unsafe struct ReadOnlyNativeJaggedArraySlice<T> :
         IJaggedArraySliceBase<T>,
         IEnumerable<T>,
-        IEquatable<NativeJaggedArraySlice<T>>,
-        IEquatable<ReadOnlyNativeJaggedArraySlice<T>>,
-        IEquatable<IEnumerable<T>>, IEquatable<T>,
-        IEquatable<NativeList<T>>, IEquatable<NativeArray<T>>,
         ISlice<ReadOnlyNativeJaggedArraySlice<T>>
-        where T : unmanaged, IEquatable<T>
+        where T : unmanaged
     {
-        private readonly NativeJaggedArraySlice<T> _slice;
+        internal readonly NativeJaggedArraySlice<T> _slice;
 
         public int Length { get { return _slice.Length; } }
 
@@ -355,65 +263,10 @@ namespace NativeStringCollections
                 yield return this[i];
         }
         IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
-
-        public bool Equals(T* ptr, int Length)
-        {
-            return _slice.Equals(ptr, Length);
-        }
-        public bool Equals(NativeJaggedArraySlice<T> slice)
-        {
-            return _slice.Equals(slice);
-        }
-        public bool Equals(ReadOnlyNativeJaggedArraySlice<T> slice)
-        {
-            return _slice.Equals(slice);
-        }
-        public bool Equals(T value)
-        {
-            return _slice.Equals(value);
-        }
-        public bool Equals(NativeList<T> list)
-        {
-            return _slice.Equals(list);
-        }
-        public bool Equals(NativeArray<T> array)
-        {
-            return _slice.Equals(array);
-        }
-        public bool Equals(IEnumerable<T> in_itr)
-        {
-            return _slice.SequenceEqual<T>(in_itr);
-        }
-        public static bool operator ==(ReadOnlyNativeJaggedArraySlice<T> lhs, NativeJaggedArraySlice<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(ReadOnlyNativeJaggedArraySlice<T> lhs, NativeJaggedArraySlice<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(ReadOnlyNativeJaggedArraySlice<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(ReadOnlyNativeJaggedArraySlice<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(ReadOnlyNativeJaggedArraySlice<T> lhs, IEnumerable<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(ReadOnlyNativeJaggedArraySlice<T> lhs, IEnumerable<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(ReadOnlyNativeJaggedArraySlice<T> lhs, NativeList<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(ReadOnlyNativeJaggedArraySlice<T> lhs, NativeList<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(ReadOnlyNativeJaggedArraySlice<T> lhs, NativeArray<T> rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(ReadOnlyNativeJaggedArraySlice<T> lhs, NativeArray<T> rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(ReadOnlyNativeJaggedArraySlice<T> lhs, T rhs) { return lhs.Equals(rhs); }
-        public static bool operator !=(ReadOnlyNativeJaggedArraySlice<T> lhs, T rhs) { return !lhs.Equals(rhs); }
-        public static bool operator ==(IEnumerable<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return rhs.Equals(lhs); }
-        public static bool operator !=(IEnumerable<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return !rhs.Equals(lhs); }
-        public static bool operator ==(NativeList<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return rhs.Equals(lhs); }
-        public static bool operator !=(NativeList<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return !rhs.Equals(lhs); }
-        public static bool operator ==(NativeArray<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return rhs.Equals(lhs); }
-        public static bool operator !=(NativeArray<T> lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return !rhs.Equals(lhs); }
-        public static bool operator ==(T lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return rhs.Equals(lhs); }
-        public static bool operator !=(T lhs, ReadOnlyNativeJaggedArraySlice<T> rhs) { return !rhs.Equals(lhs); }
-        public override bool Equals(object obj)
-        {
-            return obj is ReadOnlyNativeJaggedArraySlice<T> && ((IJaggedArraySliceBase<T>)obj).Equals(_slice);
-        }
         public override int GetHashCode()
         {
             return _slice.GetHashCode();
         }
-
-        public int IndexOf(T key, int start = 0) { return _slice.IndexOf(key, start); }
 
         public override string ToString()
         {
@@ -425,6 +278,68 @@ namespace NativeStringCollections
         }
 
         public void* GetUnsafePtr() { return _slice.GetUnsafePtr(); }
+    }
+
+    public static class NativeJaggedArraySliceExt
+    {
+        public static unsafe bool Equals<Tslice, T>(this Tslice slice, T* ptr, int Length)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T: unmanaged, IEquatable<T>
+        {
+            T* _ptr = (T*)slice.GetUnsafePtr();
+            int _len = slice.Length;
+            if (_len != Length) return false;
+
+            // pointing same target
+            if (_ptr == ptr) return true;
+
+            for (int i = 0; i < _len; i++)
+            {
+                if (!_ptr[i].Equals(ptr[i])) return false;
+            }
+
+            return true;
+        }
+        public static unsafe bool Equals<Tslice1, Tslice2, T>(this Tslice1 lhs, Tslice2 slice)
+            where Tslice1 : IJaggedArraySliceBase<T>
+            where Tslice2 : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return lhs.Equals((T*)slice.GetUnsafePtr(), slice.Length);
+        }
+        public static unsafe bool Equals<Tslice, T>(this Tslice slice, NativeArray<T> arr)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return slice.Equals((T*)arr.GetUnsafePtr(), arr.Length);
+        }
+        public static unsafe bool Equals<Tslice, T>(this Tslice slice, NativeList<T> list)
+           where Tslice : IJaggedArraySliceBase<T>
+           where T : unmanaged, IEquatable<T>
+        {
+            return slice.Equals((T*)list.GetUnsafePtr(), list.Length);
+        }
+
+        public static unsafe int IndexOf<T>(this NativeJaggedArraySlice<T> slice, T key, int start = 0)
+            where T : unmanaged, IEquatable<T>
+        {
+            slice.CheckReallocate();
+            slice.CheckElemIndex(start);
+
+            int _len = slice._len;
+            T* _ptr = slice._ptr;
+
+            for (int i = start; i < _len; i++)
+            {
+                if (_ptr[i].Equals(key)) return i;
+            }
+            return -1;
+        }
+        public static unsafe int IndexOf<T>(this ReadOnlyNativeJaggedArraySlice<T> slice, T key, int start = 0)
+            where T : unmanaged, IEquatable<T>
+        {
+            return slice._slice.IndexOf(key, start);
+        }
     }
 
 

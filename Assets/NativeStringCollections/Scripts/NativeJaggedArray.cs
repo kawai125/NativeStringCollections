@@ -29,7 +29,7 @@ namespace NativeStringCollections
 
     [StructLayout(LayoutKind.Sequential)]
     public struct NativeJaggedArray<T> : IDisposable, IEnumerable<NativeJaggedArraySlice<T>>
-        where T : unmanaged, IEquatable<T>
+        where T : unmanaged
     {
         internal NativeList<T> _buff;
         internal NativeList<ElemIndex> _elemIndexList;
@@ -197,53 +197,6 @@ namespace NativeStringCollections
             this.Add((T*)array.GetUnsafePtr(), array.Length);
         }
 
-        /// <summary>
-        /// Get the index.
-        /// </summary>
-        /// <param name="key">list</param>
-        /// <returns>index or -1 (not found)</returns>
-        public unsafe int IndexOf(NativeList<T> key)
-        {
-            if (this._elemIndexList.Length < 1) return -1;
-            for (int i = 0; i < this._elemIndexList.Length; i++)
-            {
-                var slice = this[i];
-                if (slice.Equals(key)) return i;
-            }
-            return -1;
-        }
-        /// <summary>
-        /// Get the index.
-        /// </summary>
-        /// <param name="key">list</param>
-        /// <returns>index or -1 (not found)</returns>
-        public unsafe int IndexOf(NativeArray<T> key)
-        {
-            if (this._elemIndexList.Length < 1) return -1;
-            for (int i = 0; i < this._elemIndexList.Length; i++)
-            {
-                var slice = this[i];
-                if (slice.Equals(key)) return i;
-            }
-            return -1;
-        }
-        /// <summary>
-        /// Get the index of the slice.
-        /// </summary>
-        /// <param name="key">slice</param>
-        /// <returns>index or -1 (not found)</returns>
-        public unsafe int IndexOf<Tkey>(Tkey key)
-            where Tkey : IJaggedArraySliceBase<T>
-        {
-            if (this._elemIndexList.Length < 1) return -1;
-            for (int i = 0; i < this._elemIndexList.Length; i++)
-            {
-                var slice = this[i];
-                if (slice.Equals(key)) return i;
-            }
-            return -1;
-        }
-
         public void RemoveAt(int index)
         {
             this.CheckElemIndex(index);
@@ -382,5 +335,55 @@ namespace NativeStringCollections
         private long GetGen() { return this.genTrace[0]; }
         unsafe private long* GetGenPtr() { return (long*)this.genTrace.GetUnsafePtr(); }
 #endif
+    }
+
+    public static class NativeJaggedArrayExt
+    {
+        /// <summary>
+        /// Get the index of slice.
+        /// </summary>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, T* ptr, int Length)
+            where T: unmanaged, IEquatable<T>
+        {
+            if (jarr.Length < 1) return -1;
+            for(int i=0; i<jarr.Length; i++)
+            {
+                var slice = jarr[i];
+                if (slice.Equals(ptr, Length)) return i;
+            }
+            return -1;
+        }
+        /// <summary>
+        /// Get the index of slice.
+        /// </summary>
+        /// <param name="key">list</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, NativeList<T> key)
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length);
+        }
+        /// <summary>
+        /// Get the index of slice.
+        /// </summary>
+        /// <param name="key">list</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, NativeArray<T> key)
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length);
+        }
+        /// <summary>
+        /// Get the index of the slice.
+        /// </summary>
+        /// <param name="key">slice</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int IndexOf<T, Tslice>(this NativeJaggedArray<T> jarr, Tslice key)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length);
+        }
     }
 }

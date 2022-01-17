@@ -165,7 +165,7 @@ namespace NativeStringCollections
             String,
             Digit,
         }
-        internal readonly struct WordBlock : IEquatable<WordBlock>
+        internal readonly struct WordBlock
         {
             public readonly long num;
             public readonly ReadOnlyStringEntity word;
@@ -183,20 +183,6 @@ namespace NativeStringCollections
                 {
                     num = 0;
                 }
-            }
-
-            public bool Equals(WordBlock wb)
-            {
-                if (wb.type != type) return false;
-                if(type == WordType.Digit)
-                {
-                    return (wb.num == num);
-                }
-                else if(type == WordType.String)
-                {
-                    return (wb.word == word);
-                }
-                return false;
             }
         }
 
