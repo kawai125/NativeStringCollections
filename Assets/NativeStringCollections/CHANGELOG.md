@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.2] - 2022-02-18
+- patching for Unity.Collections 0.17 and 1.1 on Unity 2020.3.
+
 ## [1.1.1] - 2022-01-17
 - Refactored NativeJaggedArray<T> and NativeJaggedArraySlice<T>. now the IEquatable<T> is not required for them.
 

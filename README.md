@@ -10,9 +10,14 @@ The toolset to parse generic text files using C# JobSystem and Burst on Unity.
 ## Environment
 This library was tested in the below system.
 
-- Unity 2019.4.24f1
+- Unity 2019.4.35f1
   - Collections 0.9.0-preview.6
-  - Burst 1.4.7
+  - Burst 1.4.11
+
+
+- Unity 2020.3.25f1
+  - Collections 0.17.0 or 1.1
+  - Burst 1.6.3
 
 ## Git Path for Unity Package Manager
 [https://github.com/kawai125/NativeStringCollections.git?path=Assets/NativeStringCollections](https://github.com/kawai125/NativeStringCollections.git?path=Assets/NativeStringCollections)

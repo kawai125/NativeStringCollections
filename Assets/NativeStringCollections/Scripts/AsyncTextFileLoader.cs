@@ -700,7 +700,11 @@ namespace NativeStringCollections
                 sb.Append($", parser_id = {p_id}\n");
 #endif
             }
+#if PATCH_COLLECTIONS_REMOVE_RANGE
+            _updateLoadTgtList.RemoveRangeWithBeginEnd(0, n_job);
+#else
             _updateLoadTgtList.RemoveRange(0, n_job);
+#endif
             _loadWaitingQueueNum = _updateLoadTgtList.Length;
 
 #if LOG_ASYNC_TEXT_FILE_LOADER_UPDATE

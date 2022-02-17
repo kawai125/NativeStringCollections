@@ -4,6 +4,10 @@ using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
+#if PATCH_COLLECTIONS_1_0_OR_LATER
+using Unity.Collections.NotBurstCompatible;
+#endif
+
 
 namespace NativeStringCollections.Impl
 {
@@ -65,7 +69,14 @@ namespace NativeStringCollections.Impl
                 _list.ResizeUninitialized(_start.Value);
             }
         }
-        public void CopyFrom(T[] array) { _list.CopyFrom(array); }
+        public void CopyFrom(T[] array)
+        {
+#if PATCH_COLLECTIONS_1_0_OR_LATER
+            _list.CopyFromNBC(array);
+#else
+            _list.CopyFrom(array);
+#endif
+        }
 
         public void Dispose()
         {
