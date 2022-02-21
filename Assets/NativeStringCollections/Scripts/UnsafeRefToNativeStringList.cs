@@ -115,8 +115,8 @@ namespace NativeStringCollections.Utility
         {
             return _jarr.IndexOf(key);
         }
-        public int IndexOf<T>(T key)
-            where T : IJaggedArraySliceBase<Char16>
+        public int IndexOf<TSlice>(TSlice key)
+            where TSlice : unmanaged, IJaggedArraySliceBase<Char16>
         {
             return _jarr.IndexOf(key);
         } 

@@ -162,13 +162,13 @@ namespace NativeStringCollections.Utility
         /// <param name="key">slice</param>
         /// <returns>index or -1 (not found)</returns>
         public unsafe int IndexOf<TSlice>(TSlice key)
-            where TSlice : IJaggedArraySliceBase<T>
+            where TSlice : unmanaged, IJaggedArraySliceBase<T>
         {
             if (this._elemIndexList.Length < 1) return -1;
             for (int i = 0; i < this._elemIndexList.Length; i++)
             {
                 var slice = this[i];
-                if (slice.Equals(key)) return i;
+                if (slice.Equals((T*)key.GetUnsafePtr(), key.Length)) return i;
             }
             return -1;
         }
