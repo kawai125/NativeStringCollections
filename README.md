@@ -337,8 +337,8 @@ StringEntity.Split(delim, split_result);  // delim: a char or StringEntity.
 StringEntity.Split(split_result);         // split by Char.IsWhiteSpace()
 
 // Strip(), Lstrip() and Rstrip()
-StringEntity strip_result = StringEntity.Strip(delim);  //  delim: a char or StringEntity.
-StringEntity strip_result = StringEntity.Strip();       //  strip for Char.IsWhiteSpace() in both side.
+StringEntity strip_result = StringEntity.Strip(delim);  // delim: a char or StringEntity.
+StringEntity strip_result = StringEntity.Strip();       // strip for Char.IsWhiteSpace() in both side.
 
 // Slice()
 StringEntity slice_result = StringEntity.Slice(begin, end);

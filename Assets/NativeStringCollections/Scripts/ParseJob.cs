@@ -37,9 +37,9 @@ namespace NativeStringCollections
 
                 ParserID = -1;
 
-                DelayReadAsync = -1;
-                DelayParseText = -1;
-                DelayPostProc = -1;
+                DelayReadAsync = 0f;
+                DelayParseText = 0f;
+                DelayPostProc = 0f;
             }
             public bool IsStandby
             {

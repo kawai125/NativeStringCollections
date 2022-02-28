@@ -111,6 +111,31 @@ namespace Tests
 
             NSL.Dispose();
         }
+        [Test]
+        public void CheckAPI_StringEntity_LastIndexOf()
+        {
+
+            string str = "1234567890--@@G1234567890--@@@xxmhr1234567890--@@";
+
+            var NSL = new NativeStringList(Allocator.TempJob);
+            NSL.Add(str);
+
+            StringEntity entity = NSL[0];
+
+            // StringEntity.LastIndexOf(Char16)
+            Assert.AreEqual(entity.LastIndexOf('6'), 40);
+            Assert.AreEqual(entity.LastIndexOf('6', 10), 5);
+            Assert.AreEqual(entity.LastIndexOf('x'), 31);
+            Assert.AreEqual(entity.LastIndexOf('W'), -1);  // not found
+
+            // StringEntity.IndexOf(string) (= same implementation of IndexOf(StringEntity))
+            Assert.AreEqual(entity.LastIndexOf("@@x"), 28);
+            Assert.AreEqual(entity.LastIndexOf("890-"), 42);
+            Assert.AreEqual(entity.LastIndexOf("890-", 12), 7);
+            Assert.AreEqual(entity.LastIndexOf("99"), -1);  // not found
+
+            NSL.Dispose();
+        }
 
 
         // helper functions

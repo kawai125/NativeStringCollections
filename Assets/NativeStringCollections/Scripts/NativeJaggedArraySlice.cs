@@ -282,23 +282,17 @@ namespace NativeStringCollections
 
     public static class NativeJaggedArraySliceExt
     {
+        //-------------
+        // Equals()
+        //-------------
         public static unsafe bool Equals<Tslice, T>(this Tslice slice, T* ptr, int Length)
             where Tslice : IJaggedArraySliceBase<T>
             where T: unmanaged, IEquatable<T>
         {
             T* _ptr = (T*)slice.GetUnsafePtr();
             int _len = slice.Length;
-            if (_len != Length) return false;
 
-            // pointing same target
-            if (_ptr == ptr) return true;
-
-            for (int i = 0; i < _len; i++)
-            {
-                if (!_ptr[i].Equals(ptr[i])) return false;
-            }
-
-            return true;
+            return SpanEquals(_ptr, _len, ptr, Length);
         }
         public static unsafe bool Equals<Tslice1, Tslice2, T>(this Tslice1 lhs, Tslice2 slice)
             where Tslice1 : IJaggedArraySliceBase<T>
@@ -320,25 +314,132 @@ namespace NativeStringCollections
             return slice.Equals((T*)list.GetUnsafePtr(), list.Length);
         }
 
-        public static unsafe int IndexOf<T>(this NativeJaggedArraySlice<T> slice, T key, int start = 0)
+        //-------------
+        // IndexOf()
+        //-------------
+        public static unsafe int IndexOf<Tslice, T>(this Tslice slice, T* tgt_ptr, int tgt_length, int start = 0)
+            where Tslice : IJaggedArraySliceBase<T>
             where T : unmanaged, IEquatable<T>
         {
-            slice.CheckReallocate();
-            slice.CheckElemIndex(start);
+            return SpanIndexOf((T*)slice.GetUnsafePtr(), slice.Length, tgt_ptr, tgt_length, start);
+        }
+        public static unsafe int IndexOf<Tslice1, Tslice2, T>(this Tslice1 lhs, Tslice2 slice, int start = 0)
+            where Tslice1 : IJaggedArraySliceBase<T>
+            where Tslice2 : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return IndexOf(lhs, (T*)slice.GetUnsafePtr(), slice.Length, start);
+        }
+        public static unsafe int IndexOf<Tslice, T>(this Tslice slice, NativeArray<T> arr, int start = 0)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return slice.IndexOf((T*)arr.GetUnsafePtr(), arr.Length, start);
+        }
+        public static unsafe int IndexOf<Tslice, T>(this Tslice slice, NativeList<T> list, int start = 0)
+           where Tslice : IJaggedArraySliceBase<T>
+           where T : unmanaged, IEquatable<T>
+        {
+            return slice.IndexOf((T*)list.GetUnsafePtr(), list.Length, start);
+        }
 
-            int _len = slice._len;
-            T* _ptr = slice._ptr;
+        //-------------
+        // LastIndexOf()
+        //-------------
+        public static unsafe int LastIndexOf<Tslice, T>(this Tslice slice, T* tgt_ptr, int tgt_length)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return LastIndexOf(slice, tgt_ptr, tgt_length, slice.Length - tgt_length);
+        }
+        public static unsafe int LastIndexOf<Tslice, T>(this Tslice slice, T* tgt_ptr, int tgt_length, int start)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return SpanLastIndexOf((T*)slice.GetUnsafePtr(), slice.Length, tgt_ptr, tgt_length, start);
+        }
+        public static unsafe int LastIndexOf<Tslice1, Tslice2, T>(this Tslice1 lhs, Tslice2 slice)
+            where Tslice1 : IJaggedArraySliceBase<T>
+            where Tslice2 : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return LastIndexOf(lhs, (T*)slice.GetUnsafePtr(), slice.Length, lhs.Length - slice.Length);
+        }
+        public static unsafe int LastIndexOf<Tslice1, Tslice2, T>(this Tslice1 lhs, Tslice2 slice, int start)
+            where Tslice1 : IJaggedArraySliceBase<T>
+            where Tslice2 : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return LastIndexOf(lhs, (T*)slice.GetUnsafePtr(), slice.Length, start);
+        }
+        public static unsafe int LastIndexOf<Tslice, T>(this Tslice slice, NativeArray<T> arr)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return slice.LastIndexOf((T*)arr.GetUnsafePtr(), arr.Length, slice.Length - arr.Length);
+        }
+        public static unsafe int LastIndexOf<Tslice, T>(this Tslice slice, NativeArray<T> arr, int start)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return slice.LastIndexOf((T*)arr.GetUnsafePtr(), arr.Length, start);
+        }
+        public static unsafe int LastIndexOf<Tslice, T>(this Tslice slice, NativeList<T> list)
+           where Tslice : IJaggedArraySliceBase<T>
+           where T : unmanaged, IEquatable<T>
+        {
+            return slice.LastIndexOf((T*)list.GetUnsafePtr(), list.Length, slice.Length - list.Length);
+        }
+        public static unsafe int LastIndexOf<Tslice, T>(this Tslice slice, NativeList<T> list, int start)
+           where Tslice : IJaggedArraySliceBase<T>
+           where T : unmanaged, IEquatable<T>
+        {
+            return slice.LastIndexOf((T*)list.GetUnsafePtr(), list.Length, start);
+        }
 
-            for (int i = start; i < _len; i++)
+        internal static unsafe bool SpanEquals<T>(T* ptr_l, int len_l, T* ptr_r, int len_r)
+            where T : unmanaged, IEquatable<T>
+        {
+            if (len_l != len_r) return false;
+
+            for(int i=0; i<len_l; i++)
             {
-                if (_ptr[i].Equals(key)) return i;
+                if (!ptr_l[i].Equals(ptr_r[i])) return false;
+            }
+            return true;
+        }
+        internal static unsafe int SpanIndexOf<T>(T* ptr_source, int len_source, T* ptr_tgt, int len_tgt, int start)
+            where T : unmanaged, IEquatable<T>
+        {
+            CheckStartIndex(len_source, start);
+            CheckStartIndex(len_source, start + len_tgt - 1);
+
+            int eq_len = len_source - (len_tgt - 1);
+
+            for (int i = start; i < eq_len; i++)
+            {
+                if (SpanEquals(ptr_source + i, len_tgt, ptr_tgt, len_tgt)) return i;
             }
             return -1;
         }
-        public static unsafe int IndexOf<T>(this ReadOnlyNativeJaggedArraySlice<T> slice, T key, int start = 0)
+        internal static unsafe int SpanLastIndexOf<T>(T* ptr_source, int len_source, T* ptr_tgt, int len_tgt, int start)
             where T : unmanaged, IEquatable<T>
         {
-            return slice._slice.IndexOf(key, start);
+            CheckStartIndex(len_source, start);
+            CheckStartIndex(len_source, start + len_tgt - 1);
+
+            for (int i = start; i >= 0; i--)
+            {
+                if (SpanEquals(ptr_source + i, len_tgt, ptr_tgt, len_tgt)) return i;
+            }
+            return -1;
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        private static void CheckStartIndex(int length, int start)
+        {
+            if (start < 0 || length <= start)
+                throw new ArgumentOutOfRangeException($"start index = {start} is out of range. must be in [{0}, {length - 1}]");
         }
     }
 

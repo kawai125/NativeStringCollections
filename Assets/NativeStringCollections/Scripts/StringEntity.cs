@@ -242,44 +242,46 @@ namespace NativeStringCollections
             }
             return -1;
         }
-        public unsafe int IndexOf<T>(T slice, int start = 0)
-            where T : IJaggedArraySliceBase<Char16>
-        {
-            return this.IndexOfSliceImpl((Char16*)slice.GetUnsafePtr(), slice.Length, start);
-        }
-        public unsafe int IndexOf(string str, int start = 0)
-        {
-            fixed(char* p = str)
-            {
-                return this.IndexOfSliceImpl((Char16*)p, str.Length, start);
-            }
-        }
-        private unsafe int IndexOfSliceImpl(Char16* tgt_ptr, int tgt_len, int start)
+        public int IndexOf(string key, int start = 0)
         {
             this.CheckReallocate();
             this.CheckElemIndex(start);
 
-            if (tgt_len > _len - start) return -1;
-            if (tgt_len <= 0) return -1;
-
-            for (int i = start; i < _len - (tgt_len - 1); i++)
+            fixed (char* char_p = key)
             {
-                if (_ptr[i].Equals(tgt_ptr[0]))
-                {
-                    bool is_match = true;
-                    for (int j = 1; j < tgt_len; j++)
-                    {
-                        if (!_ptr[i + j].Equals(tgt_ptr[j]))
-                        {
-                            is_match = false;
-                            break;
-                        }
-                    }
+                Char16* tgt_ptr = (Char16*)char_p;
+                return NativeJaggedArraySliceExt.SpanIndexOf(_ptr, Length, tgt_ptr, key.Length, start);
+            }
+        }
+        public int LastIndexOf(Char16 key)
+        {
+            return this.LastIndexOf(key, Length - 1);
+        }
+        public int LastIndexOf(Char16 key, int start)
+        {
+            this.CheckReallocate();
+            this.CheckElemIndex(start);
 
-                    if (is_match) return i;
-                }
+            for (int i = start; i >= 0; i--)
+            {
+                if (_ptr[i].Equals(key)) return i;
             }
             return -1;
+        }
+        public int LastIndexOf(string key)
+        {
+            return this.LastIndexOf(key, Length - key.Length);
+        }
+        public int LastIndexOf(string key, int start)
+        {
+            this.CheckReallocate();
+            this.CheckElemIndex(start);
+
+            fixed (char* char_p = key)
+            {
+                Char16* ptr = (Char16*)char_p;
+                return NativeJaggedArraySliceExt.SpanLastIndexOf(_ptr, Length, ptr, key.Length, start);
+            }
         }
 
         public ReadOnlyStringEntity GetReadOnly()
@@ -402,37 +404,31 @@ namespace NativeStringCollections
         }
         public bool Equals(Char16[] c_arr)
         {
-            if (this.Length != c_arr.Length) return false;
-            return this.SequenceEqual<Char16>(c_arr);
+            return _entity.Equals(c_arr);
         }
         public bool Equals(Char16 c)
         {
-            return (this.Length == 1 && this[0] == c);
+            return _entity.Equals(c);
         }
         public bool Equals(IEnumerable<Char16> in_itr)
         {
-            return this.SequenceEqual<Char16>(in_itr);
+            return _entity.Equals(in_itr);
         }
         public bool Equals(char[] c_arr)
         {
-            if (_entity.Length != c_arr.Length) return false;
-            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(_entity);
-            return tmp.SequenceEqual<char>(c_arr);
+            return _entity.Equals(c_arr);
         }
         public bool Equals(char c)
         {
-            return (_entity.Length == 1 && this[0] == c);
+            return _entity.Equals(c);
         }
         public bool Equals(IEnumerable<char> str_itr)
         {
-            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(_entity);
-            return tmp.SequenceEqual<char>(str_itr);
+            return _entity.Equals(str_itr);
         }
         public bool Equals(string str)
         {
-            if (_entity.Length != str.Length) return false;
-            var tmp = Utility.StringEntityGeneratorExt.StringEntityCastToCharSlice(_entity);
-            return tmp.SequenceEqual<char>(str);
+            return _entity.Equals(str);
         }
         public static bool operator ==(ReadOnlyStringEntity lhs, StringEntity rhs) { return lhs.Equals(rhs); }
         public static bool operator !=(ReadOnlyStringEntity lhs, StringEntity rhs) { return !lhs.Equals(rhs); }
@@ -472,15 +468,11 @@ namespace NativeStringCollections
         }
 
         public int IndexOf(Char16 key, int start = 0) { return _entity.IndexOf(key, start); }
-        public int IndexOf<T>(T key, int start = 0)
-            where T : IJaggedArraySliceBase<Char16>
-        {
-            return _entity.IndexOf(key, start);
-        }
-        public int IndexOf(string str, int start = 0)
-        {
-            return _entity.IndexOf(str, start);
-        }
+        public int IndexOf(string key, int start = 0) { return _entity.IndexOf(key, start); }
+        public int LastIndexOf(Char16 key) { return _entity.LastIndexOf(key); }
+        public int LastIndexOf(string key) { return _entity.LastIndexOf(key); }
+        public int LastIndexOf(Char16 key, int start) { return _entity.LastIndexOf(key, start); }
+        public int LastIndexOf(string key, int start) { return _entity.LastIndexOf(key, start); }
 
         public override string ToString()
         {

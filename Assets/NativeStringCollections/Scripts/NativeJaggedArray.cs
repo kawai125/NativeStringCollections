@@ -343,10 +343,12 @@ namespace NativeStringCollections
         /// Get the index of slice.
         /// </summary>
         /// <returns>index or -1 (not found)</returns>
-        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, T* ptr, int Length)
+        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, T* ptr, int Length, int start = 0)
             where T: unmanaged, IEquatable<T>
         {
             if (jarr.Length < 1) return -1;
+
+            CheckStartIndex(jarr, start);
             for(int i=0; i<jarr.Length; i++)
             {
                 var slice = jarr[i];
@@ -359,31 +361,128 @@ namespace NativeStringCollections
         /// </summary>
         /// <param name="key">list</param>
         /// <returns>index or -1 (not found)</returns>
-        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, NativeList<T> key)
+        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, NativeList<T> key, int start = 0)
             where T : unmanaged, IEquatable<T>
         {
-            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length);
+            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length, start);
         }
         /// <summary>
         /// Get the index of slice.
         /// </summary>
         /// <param name="key">list</param>
         /// <returns>index or -1 (not found)</returns>
-        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, NativeArray<T> key)
+        public static unsafe int IndexOf<T>(this NativeJaggedArray<T> jarr, NativeArray<T> key, int start = 0)
             where T : unmanaged, IEquatable<T>
         {
-            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length);
+            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length, start);
         }
         /// <summary>
         /// Get the index of the slice.
         /// </summary>
         /// <param name="key">slice</param>
         /// <returns>index or -1 (not found)</returns>
-        public static unsafe int IndexOf<T, Tslice>(this NativeJaggedArray<T> jarr, Tslice key)
+        public static unsafe int IndexOf<T, Tslice>(this NativeJaggedArray<T> jarr, Tslice key, int start = 0)
             where Tslice : IJaggedArraySliceBase<T>
             where T : unmanaged, IEquatable<T>
         {
-            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length);
+            return jarr.IndexOf((T*)key.GetUnsafePtr(), key.Length, start);
+        }
+
+        /// <summary>
+        /// Get the last index of slice.
+        /// </summary>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int LastIndexOf<T>(this NativeJaggedArray<T> jarr, T* ptr, int Length)
+            where T : unmanaged, IEquatable<T>
+        {
+            return LastIndexOf(jarr, ptr, Length, jarr.Length - 1);
+        }
+        /// <summary>
+        /// Get the last index of slice.
+        /// </summary>
+        /// <param name="key">list</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int LastIndexOf<T>(this NativeJaggedArray<T> jarr, NativeList<T> key)
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.LastIndexOf((T*)key.GetUnsafePtr(), key.Length);
+        }
+        /// <summary>
+        /// Get the last index of slice.
+        /// </summary>
+        /// <param name="key">list</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int LastIndexOf<T>(this NativeJaggedArray<T> jarr, NativeArray<T> key)
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.LastIndexOf((T*)key.GetUnsafePtr(), key.Length);
+        }
+        /// <summary>
+        /// Get the last index of the slice.
+        /// </summary>
+        /// <param name="key">slice</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int LastIndexOf<T, Tslice>(this NativeJaggedArray<T> jarr, Tslice key)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.LastIndexOf((T*)key.GetUnsafePtr(), key.Length);
+        }
+        /// <summary>
+        /// Get the last index of slice.
+        /// </summary>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int LastIndexOf<T>(this NativeJaggedArray<T> jarr, T* ptr, int Length, int start)
+            where T : unmanaged, IEquatable<T>
+        {
+            if (jarr.Length < 1) return -1;
+
+            CheckStartIndex(jarr, start);
+            for (int i = start; i >= 0; i--)
+            {
+                var slice = jarr[i];
+                if (slice.Equals(ptr, Length)) return i;
+            }
+            return -1;
+        }
+        /// <summary>
+        /// Get the last index of slice.
+        /// </summary>
+        /// <param name="key">list</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int LastIndexOf<T>(this NativeJaggedArray<T> jarr, NativeList<T> key, int start)
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.LastIndexOf((T*)key.GetUnsafePtr(), key.Length, start);
+        }
+        /// <summary>
+        /// Get the last index of slice.
+        /// </summary>
+        /// <param name="key">list</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int LastIndexOf<T>(this NativeJaggedArray<T> jarr, NativeArray<T> key, int start)
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.LastIndexOf((T*)key.GetUnsafePtr(), key.Length, start);
+        }
+        /// <summary>
+        /// Get the last index of the slice.
+        /// </summary>
+        /// <param name="key">slice</param>
+        /// <returns>index or -1 (not found)</returns>
+        public static unsafe int LastIndexOf<T, Tslice>(this NativeJaggedArray<T> jarr, Tslice key, int start)
+            where Tslice : IJaggedArraySliceBase<T>
+            where T : unmanaged, IEquatable<T>
+        {
+            return jarr.LastIndexOf((T*)key.GetUnsafePtr(), key.Length, start);
+        }
+
+        [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
+        private static void CheckStartIndex<T>(NativeJaggedArray<T> jarr, int start)
+            where T : unmanaged
+        {
+            if (start < 0 || jarr.Length <= start)
+                throw new ArgumentOutOfRangeException($"start index = {start} is out of range. must be in [{0}, {jarr.Length - 1}]");
         }
     }
 }

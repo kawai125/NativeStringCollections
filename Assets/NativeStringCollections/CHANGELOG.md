@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.4] - 2022-03-01
+- Fixed `AsyncTextFileReader<T>.Dispose()`, `AsyncTextFileReader<T>.Complete()`.
+- Added `AsyncTextFileLoader<T>.Complete()`.
+- Refactored `NativeJaggedArray<T>.IndexOf()`, `NativeJaggedArraySlice<T>.IndexOf()`.
+- Added `NativeJaggedArray<T>.LastIndexOf()`, `NativeJaggedArraySlice<T>.LastIndexOf()`.
+
 ## [1.1.3] - 2022-02-22
 - Fixed `NativeJaggedArray.IndexOf()`. boxing was removed.
 
