@@ -12,7 +12,7 @@ namespace NativeStringCollections
 
         // for AsyncTextFileLoader
         public const int MinDecodeBlock = 64;
-        public const int DefaultDecodeBlock = 2048;
+        public const int DefaultDecodeBlock = 4096;
         public const int DefaultNumParser = 2;
         public const int NumParserLimit = 1048576;
     }

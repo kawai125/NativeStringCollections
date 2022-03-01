@@ -128,13 +128,18 @@ namespace Tests
 
             string in_range_lo = "-3.40281e+38";
             string in_range_hi = "3.40281E+38";
-            string out_range_lo = "-3.40283e+38";
-            string out_range_hi = "3.40283E+38";
+#if DISABLE_CS_FAST_FLOAT
+            string out_range_lo = "-3.40283e+38";  // standard float.TryParse() gives "0" and return false.
+            string out_range_hi = "3.40283E+38";   // csFastFloat.TryParse() gives "infinity" and return true.
+#endif
 
             str_list.Add(in_range_lo.ToString());
             str_list.Add(in_range_hi.ToString());
+
+#if DISABLE_CS_FAST_FLOAT
             str_list.Add(out_range_lo.ToString());
             str_list.Add(out_range_hi.ToString());
+#endif
 
             str_list.Add("1.401298e-45");  // float.Elipson
             str_list.Add("-1.401298e-45");
@@ -196,9 +201,11 @@ namespace Tests
             str_list.Add("000E-00");
             str_list.Add("321.98e22");
 
-            str_list.Add("123E+00000000000000000000221");
+#if DISABLE_CS_FAST_FLOAT
+        //    str_list.Add("123E+00000000000000000000221");    // standard float.TryParse() gives "0" and return false.
+        //    str_list.Add("123E+00000000000000000000221777"); // csFastFloat.TryParse() gives "infinity" and return true.
+#endif
             str_list.Add("123E-00000000000000000000221");
-            str_list.Add("123E+00000000000000000000221777");
             str_list.Add("123E-00000000000000000000221777");
 
 
@@ -206,7 +213,11 @@ namespace Tests
             str_list.Add(".01234e+2");
             str_list.Add("6633.11e+");
             str_list.Add("6633.11e-+-4");
-            str_list.Add("123E+0000000000Kg00000000022");
+
+#if DISABLE_CS_FAST_FLOAT
+            str_list.Add("123E+0000000000Kg00000000022");  // csFastFloat treats as "123E+0000000000". the part of "Kg00000000022" was ignored.
+#endif
+            str_list.Add("123E+Kg00000000022");
 
             for (int i = 0; i < str_list.Count; i++)
             {
@@ -244,13 +255,17 @@ namespace Tests
 
             string in_range_lo = "-1.797693134862e+308";
             string in_range_hi = "1.797693134862E+308";
-            string out_range_lo = "-1.797693134863e+308";
-            string out_range_hi = "1.797693134863E+308";
+#if DISABLE_CS_FAST_FLOAT
+            string out_range_lo = "-1.797693134863e+308"; // standard double.TryParse() gives "0" and return false.
+            string out_range_hi = "1.797693134863E+308";  // csFastFloat.TryParse() gives "infinity" and return true.
+#endif
 
             str_list.Add(in_range_lo.ToString());
             str_list.Add(in_range_hi.ToString());
+#if DISABLE_CS_FAST_FLOAT
             str_list.Add(out_range_lo.ToString());
             str_list.Add(out_range_hi.ToString());
+#endif
 
             // this implementation don't aim perfect accuracy for IEEE754 convertion.
             //   Epsilon = 4.94065645841247e-324
@@ -362,11 +377,20 @@ namespace Tests
                 bool success = float.TryParse(str, out float value);
                 bool success_e = str_e.TryParse(out float value_e);
 
-                Assert.AreEqual(success, success_e);
-
                 bool check_value = this.EqualsFloat(value, value_e, 1.0e-5f, out float rel_diff);
+
                 if (!check_value || success != success_e)
                 {
+#if DISABLE_CS_FAST_FLOAT
+#else
+                    if (!success && success_e && (float.IsPositiveInfinity(value_e) || float.IsNegativeInfinity(value_e)))
+                    {
+                        // standard C# parser cannot parse value as infinit.
+                        check_value = true;
+                        break;
+                    }
+#endif
+
                     fail_count++;
                     Debug.LogError("failed to parse i = " + i.ToString() + " string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
                                  + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
@@ -404,11 +428,18 @@ namespace Tests
 
                 //Debug.Log($"@ parse target: {str_e}");
 
-                Assert.AreEqual(success, success_e);
-
                 bool check_value = this.EqualsDouble(value, value_e, 1.0e-14, out double rel_diff);
                 if (!check_value || success != success_e)
                 {
+#if DISABLE_CS_FAST_FLOAT
+#else
+                    if(!success && success_e && (double.IsPositiveInfinity(value_e) || double.IsNegativeInfinity(value_e)))
+                    {
+                        // standard C# parser cannot parse value as infinit.
+                        check_value = true;
+                        break;
+                    }
+#endif
                     Debug.LogError("failed to parse i = " + i.ToString() + " string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
                                  + "bool [str/entity] = [" + success.ToString() + "/" + success_e.ToString() + "], "
                                  + "value [str/entity] = [" + value.ToString() + "/" + value_e.ToString() + "], rel_diff = " + rel_diff.ToString());

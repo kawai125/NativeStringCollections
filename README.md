@@ -43,22 +43,28 @@ Measured environment:
 
 (1) Single file loading performance:
 
-|condition|Time [ms]|
-|:-|-:|
-|C# standard: `File.ReadAllLines()`|710 ~ 850|
-|`ITextFileParser` (without Burst)|460 ~ 480|
-|`ITextFileParser` (with Burst)|240 ~ 250|
+|condition|Time [ms]|remarks|
+|:-|-:|:-|
+|C# standard: `File.ReadAllLines()`|710 ~ 850||
+|`ITextFileParser` (without Burst)|540 ~ 550|disable `csFastFloat`|
+|`ITextFileParser` (with Burst)|220 ~ 240|disable `csFastFloat`|
+|`ITextFileParser` (without Burst)|450 ~ 460||
+|`ITextFileParser` (with Burst)|150 ~ 170||
 
 (2) Parallel file loading performance:
 
 |# of Parallel Jobs|Time [ms] with Burst|Time [ms] without Burst|
 |-:|-:|-:|
-|1|240 ~ 250|460 ~ 480|
-|2|245 ~ 270|460 ~ 500|
-|3|245 ~ 275|470 ~ 540|
-|4|255 ~ 290|500 ~ 580|
-|6|270 ~ 350|550 ~ 650|
-|8|300 ~ 390|600 ~ 700|
+|1|150 ~ 170|440 ~ 480|
+|2|155 ~ 170|450 ~ 500|
+|3|165 ~ 190|480 ~ 540|
+|4|170 ~ 200|500 ~ 580|
+|6|190 ~ 250|550 ~ 650|
+|8|200 ~ 300|600 ~ 700|
+
+This library uses the [csFastFloat](https://github.com/CarlVerret/csFastFloat) to parse float and double internally.  
+The internal csFastFloat is modified version for compatibility with Burst compiler.  
+If you want disable the csFastFloat, Add the macro of `DISABLE_CS_FAST_FLOAT`.
 
 ## Usage
 

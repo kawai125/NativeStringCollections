@@ -23,6 +23,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="result"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out bool result)
             where T : IParseExt
         {
@@ -40,6 +41,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="result"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out int result)
             where T : IParseExt
         {
@@ -57,6 +59,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="result"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out long result)
             where T : IParseExt
         {
@@ -75,6 +78,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="result"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out float result)
             where T : IParseExt
         {
@@ -101,6 +105,7 @@ namespace NativeStringCollections
         /// <param name="source"></param>
         /// <param name="result"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out double result)
             where T : IParseExt
         {
@@ -118,6 +123,7 @@ namespace NativeStringCollections
         /// <param name="result"></param>
         /// <param name="endian"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParseHex<T>(T source, out int result, Endian endian = Endian.Little)
             where T :IParseExt
         {
@@ -142,6 +148,7 @@ namespace NativeStringCollections
         /// <param name="result"></param>
         /// <param name="endian"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParseHex<T>(T source, out long result, Endian endian = Endian.Little)
             where T : IParseExt
         {
@@ -166,6 +173,7 @@ namespace NativeStringCollections
         /// <param name="result"></param>
         /// <param name="endian"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParseHex<T>(T source, out float result, Endian endian = Endian.Little)
             where T : IParseExt
         {
@@ -190,6 +198,7 @@ namespace NativeStringCollections
         /// <param name="result"></param>
         /// <param name="endian"></param>
         /// <returns></returns>
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParseHex<T>(T source, out double result, Endian endian = Endian.Little)
             where T : IParseExt
         {
@@ -208,18 +217,21 @@ namespace NativeStringCollections
         }
 
 
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static void Split(ReadOnlyStringEntity source,
                                  NativeList<ReadOnlyStringEntity> result)
         {
             var tmp = result.GetUnsafeRef();
             SplitBurstCompile._splitWhiteSpaceDelegate(ref source, ref tmp);
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static void Split(ReadOnlyStringEntity source, Char16 delim,
                                  NativeList<ReadOnlyStringEntity> result)
         {
             var tmp = result.GetUnsafeRef();
             SplitBurstCompile._splitCharDelegate(ref source, ref delim, ref tmp);
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static void Split(ReadOnlyStringEntity source, ReadOnlyStringEntity delim,
                                  NativeList<ReadOnlyStringEntity> result)
         {
@@ -228,18 +240,21 @@ namespace NativeStringCollections
         }
 
 
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Strip(ReadOnlyStringEntity source)
         {
             StripBurstCompile._stripWhiteSpaceDelegate(ref source, true, true,
                                                        out ReadOnlyStringEntity result);
             return result;
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Lstrip(ReadOnlyStringEntity source)
         {
             StripBurstCompile._stripWhiteSpaceDelegate(ref source, true, false,
                                                        out ReadOnlyStringEntity result);
             return result;
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Rstrip(ReadOnlyStringEntity source)
         {
             StripBurstCompile._stripWhiteSpaceDelegate(ref source, false, true,
@@ -247,6 +262,7 @@ namespace NativeStringCollections
             return result;
         }
 
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Strip(ReadOnlyStringEntity source, Char16 target)
         {
             StripBurstCompile._stripCharDelegate(ref source,
@@ -255,6 +271,7 @@ namespace NativeStringCollections
                                                  out ReadOnlyStringEntity result);
             return result;
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Lstrip(ReadOnlyStringEntity source, Char16 target)
         {
             StripBurstCompile._stripCharDelegate(ref source,
@@ -263,6 +280,7 @@ namespace NativeStringCollections
                                                  out ReadOnlyStringEntity result);
             return result;
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Rstrip(ReadOnlyStringEntity source, Char16 target)
         {
             StripBurstCompile._stripCharDelegate(ref source,
@@ -272,6 +290,7 @@ namespace NativeStringCollections
             return result;
         }
 
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Strip(ReadOnlyStringEntity source, ReadOnlyStringEntity target)
         {
             StripBurstCompile._stripStringDelegate(ref source,
@@ -280,6 +299,7 @@ namespace NativeStringCollections
                                                    out ReadOnlyStringEntity result);
             return result;
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Lstrip(ReadOnlyStringEntity source, ReadOnlyStringEntity target)
         {
             StripBurstCompile._stripStringDelegate(ref source,
@@ -288,6 +308,7 @@ namespace NativeStringCollections
                                                    out ReadOnlyStringEntity result);
             return result;
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static ReadOnlyStringEntity Rstrip(ReadOnlyStringEntity source, ReadOnlyStringEntity target)
         {
             StripBurstCompile._stripStringDelegate(ref source,
@@ -298,6 +319,7 @@ namespace NativeStringCollections
         }
 
 
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static void GetChars(NativeBase64Encoder encoder,
                                     NativeList<Char16> chars,
                                     byte* ptr, int len, bool splitData = false)
@@ -306,6 +328,7 @@ namespace NativeStringCollections
             var res = chars.GetUnsafeRef();
             Base64EncodingBurstCompile._getCharsDelegate(ref enc, ref res, ptr, len, splitData);
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static void Terminate(NativeBase64Encoder encoder,
                                      NativeList<Char16> chars)
         {
@@ -313,6 +336,7 @@ namespace NativeStringCollections
             var res = chars.GetUnsafeRef();
             Base64EncodingBurstCompile._terminateDelegate(ref enc, ref res);
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool GetBytes(NativeBase64Decoder decoder,
                                     NativeList<byte> bytes,
                                     Char16* ptr, int len)
@@ -322,6 +346,7 @@ namespace NativeStringCollections
             Base64EncodingBurstCompile._getBytesDelegate(ref dec, ref res, ptr, len, out bool success);
             return success;
         }
+        [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool GetBytes<T>(NativeBase64Decoder decoder,
                                        NativeList<byte> bytes,
                                        T slice)

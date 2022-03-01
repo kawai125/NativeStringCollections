@@ -152,7 +152,7 @@ namespace NativeStringCollections
 
     namespace Impl
     {
-        public struct UTF16CodeSet
+        public static class UTF16CodeSet
         {
             public const UInt16 code_tab = 0x09;
             public const UInt16 code_LF = 0x0a;

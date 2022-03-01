@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.0] - 2022-03-01
+- Modified `StringEntity.TryParse()` are updated as fast implementations.
+- Changed `Define.DefaultDecodeBlock` is changed.
+
 ## [1.1.4] - 2022-03-01
 - Fixed `AsyncTextFileReader<T>.Dispose()`, `AsyncTextFileReader<T>.Complete()`.
 - Added `AsyncTextFileLoader<T>.Complete()`.

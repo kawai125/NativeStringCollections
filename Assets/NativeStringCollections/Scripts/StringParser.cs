@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define DISABLE_CS_FAST_FLOAT
+
+using System;
 
 using UnityEngine;
 
@@ -44,8 +46,9 @@ namespace NativeStringCollections
         public unsafe static bool TryParse<T>(this T source, out int result)
             where T : IParseExt
         {
-            TryParseInt32Impl((Char16*)source.GetUnsafePtr(), source.Length, out bool success, out result);
-            return success;
+            //TryParseInt32Impl((Char16*)source.GetUnsafePtr(), source.Length, out bool success, out result);
+            //return success;
+            return FastIntegerParser.TryParse(source, out result);
         }
         /// <summary>
         /// Try to parse StringEntity to Int64. Cannot accept whitespaces and hex format (this is differ from official C# long.TryParse()). Use TryParseHex(out T) for hex data.
@@ -53,8 +56,9 @@ namespace NativeStringCollections
         public unsafe static bool TryParse<T>(this T source, out long result)
             where T : IParseExt
         {
-            TryParseInt64Impl((Char16*)source.GetUnsafePtr(), source.Length, out bool success, out result);
-            return success;
+            //TryParseInt64Impl((Char16*)source.GetUnsafePtr(), source.Length, out bool success, out result);
+            //return success;
+            return FastIntegerParser.TryParse(source, out result);
         }
         /// <summary>
         /// Try to parse StringEntity to float. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# float.TryParse()).
@@ -63,6 +67,7 @@ namespace NativeStringCollections
         public static bool TryParse<T>(this T source, out float result)
             where T : IParseExt
         {
+#if DISABLE_CS_FAST_FLOAT
             result = 0.0f;
 
             TryParseFloat64Impl((Char16*)source.GetUnsafePtr(), source.Length,
@@ -74,6 +79,9 @@ namespace NativeStringCollections
 
             result = f_cast;
             return true;
+#else
+            return Impl.csFastFloat.FastFloatParser.TryParseFloat(source, out result);
+#endif
         }
         /// <summary>
         /// Try to parse StringEntity to double. Cannot accept whitespaces, comma insertion, and hex format (these are differ from official C# double.TryParse()).
@@ -82,9 +90,13 @@ namespace NativeStringCollections
         public unsafe static bool TryParse<T>(this T source, out double result)
             where T : IParseExt
         {
+#if DISABLE_CS_FAST_FLOAT
             TryParseFloat64Impl((Char16*)source.GetUnsafePtr(), source.Length,
                                 out bool success, out result);
             return success;
+#else
+            return Impl.csFastFloat.FastDoubleParser.TryParseDouble(source, out result);
+#endif
         }
 
         unsafe public static bool TryParseHex<T>(this T source, out int result, Endian endian = Endian.Little)
