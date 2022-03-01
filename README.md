@@ -47,8 +47,8 @@ Measured environment:
 |:-|-:|:-|
 |C# standard: `File.ReadAllLines()`|710 ~ 850||
 |`ITextFileParser` (without Burst)|540 ~ 550|disable `csFastFloat`|
-|`ITextFileParser` (with Burst)|220 ~ 240|disable `csFastFloat`|
 |`ITextFileParser` (without Burst)|450 ~ 460||
+|`ITextFileParser` (with Burst)|220 ~ 240|disable `csFastFloat`|
 |`ITextFileParser` (with Burst)|150 ~ 170||
 
 (2) Parallel file loading performance:
@@ -64,7 +64,7 @@ Measured environment:
 
 This library uses the [csFastFloat](https://github.com/CarlVerret/csFastFloat) to parse float and double internally.  
 The internal csFastFloat is modified version for compatibility with Burst compiler.  
-If you want disable the csFastFloat, Add the macro of `DISABLE_CS_FAST_FLOAT`.
+If you want to disable the csFastFloat, Add the macro of `DISABLE_CS_FAST_FLOAT`.
 
 ## Usage
 
@@ -233,7 +233,7 @@ In this library, the UInt16 based struct `Char16` is used instead of `System.Cha
 Thus, you can use [Burst function pointers](https://docs.unity3d.com/Packages/com.unity.burst@1.4/manual/docs/AdvancedUsages.html#function-pointers) to optimize your `ITextFileParser` class.
 
 If you use Burst 1.6 or later, you can use [Burst direct-call.](https://docs.unity3d.com/Packages/com.unity.burst@1.6/manual/docs/CSharpLanguageSupport_Lang.html#directly-calling-burst-compiled-code)  
-It is easier to write code then Burst function pointers and has same features.
+It is easier to write code than Burst function pointers and has same features.
 
 (see `/Assets/NativeStringCollections/Samples/Scripts/CharaDataParser.cs` for sample.)
 
@@ -304,7 +304,7 @@ The `NativeStringList` is a jagged array container similar to `List<string>`, us
 `StringEntity` and `ReadOnlyStringEntity` are the slice view of `NativeStringList`.
 
 **Note:** Because of reallocation of internal buffer, calling `NativeStringList.Add()` function makes `StringEntity` to invalid reference.  
-(The tracer system is also implemented on the macro "ENABLE_UNITY_COLLECTIONS_CHECKS".)
+(The tracer system is also implemented on the macro `ENABLE_UNITY_COLLECTIONS_CHECKS`.)
 
 ### ▽Parse functions
 
@@ -351,7 +351,25 @@ StringEntity slice_result = StringEntity.Slice(begin, end);
 ```
 
 These modification functions are available.
-These functions generate `StringEntity` as new slice.
+These functions generate new `StringEntity` as new slice.
+
+```C#
+// search index from first
+int index = StringEntity.IndexOf(char);
+int index = StringEntity.IndexOf(string);
+int index = StringEntity.IndexOf(StringEntity);
+
+int index = NativeStringList.IndexOf(StringEntity);
+
+// search index from last
+int index = StringEntity.LastIndexOf(char);
+int index = StringEntity.LastIndexOf(string);
+int index = StringEntity.LastIndexOf(StringEntity);
+
+int index = NativeStringList.LastIndexOf(StringEntity);
+```
+
+The `IndexOf()` function is available.
 
 ### ▽Utility for using Burst Function Pointers
 

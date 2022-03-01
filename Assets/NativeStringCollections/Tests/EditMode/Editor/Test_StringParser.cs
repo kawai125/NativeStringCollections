@@ -387,7 +387,7 @@ namespace Tests
                     {
                         // standard C# parser cannot parse value as infinit.
                         check_value = true;
-                        break;
+                        continue;
                     }
 #endif
 
@@ -437,7 +437,7 @@ namespace Tests
                     {
                         // standard C# parser cannot parse value as infinit.
                         check_value = true;
-                        break;
+                        continue;
                     }
 #endif
                     Debug.LogError("failed to parse i = " + i.ToString() + " string [str/entity] = [" + str + "/" + str_e.ToString() + "]"
