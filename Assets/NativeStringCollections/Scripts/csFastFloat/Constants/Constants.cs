@@ -63,13 +63,7 @@ namespace NativeStringCollections.Impl.csFastFloat.Constants
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static ulong get_power_of_five_128(int index)
         {
-#if NET5_0
-      Debug.Assert(index < power_of_five_128.Length);
-      ref ulong tableRef = ref MemoryMarshal.GetArrayDataReference(power_of_five_128);
-      return Unsafe.Add(ref tableRef, (nint)(uint)index);
-#else
             return power_of_five_128[index];
-#endif
         }
 
         private readonly static ulong[] power_of_five_128 = {

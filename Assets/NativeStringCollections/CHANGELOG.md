@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2] - 2022-03-02
+- Removed macros in `csFastFloat` .
+- Removed unused part (ASCII/UTF-8 implementation) of `csFastFloat` .
+- Removed `IParseExt` and use `IJaggedArraySliceBase<Char16>` .
+- Changed folder structure.
+
 ## [1.2.1] - 2022-03-02
 - Fixed the test code `Test_StringParser.cs` .
 - Update `README` .

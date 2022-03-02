@@ -12,10 +12,7 @@ namespace NativeStringCollections.Impl.csFastFloat
 {
 
     /// <summary>
-    /// This class is intented to parse double values from inputs such as string, readonlyspans  and char pointers
-    /// There's two set of functions, one for UTF-16 encoding another for UTF-8 encoding
-    /// This is a C# port of Daniel Lemire's fast_float library written in C++
-    /// https://github.com/fastfloat/fast_float
+    /// This class is ported variant of csFastFloat to JobSystem/Burst Compiler on Unity.
     /// </summary>
     public static unsafe class FastDoubleParser
     {
@@ -23,14 +20,7 @@ namespace NativeStringCollections.Impl.csFastFloat
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static double Exact_power_of_ten(long power)
         {
-#if NET5_0
-      Debug.Assert(power < CalculationConstants.powers_of_ten_double.Length);
-      ref double tableRef = ref MemoryMarshal.GetArrayDataReference(CalculationConstants.powers_of_ten_double);
-      return Unsafe.Add(ref tableRef, (nint)power);
-#else
             return CalculationConstants.powers_of_ten_double[power];
-#endif
-
         }
 
         /// <summary>
@@ -77,7 +67,7 @@ namespace NativeStringCollections.Impl.csFastFloat
         /// <param name="decimal_separator">decimal separator to be used</param>
         /// <returns>bool : true is sucessfuly parsed</returns>
         public static bool TryParseDouble<T>(T source, out double result, UInt16 decimal_separator = UTF16CodeSet.code_dot)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             Char16* pStart = (Char16*)source.GetUnsafePtr();
             if (!TryParseNumber(pStart, pStart + (uint)source.Length, out _, out result, decimal_separator))
@@ -101,8 +91,6 @@ namespace NativeStringCollections.Impl.csFastFloat
         /// <param name="decimal_separator">decimal separator to be used</param>
         /// <param name="value">out : reference to double variable to hold the parsed value</param>
         /// <returns>double : parsed value</returns>
-
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool TryParseNumber(Char16* first, Char16* last, out int characters_consumed, out double value, UInt16 decimal_separator = UTF16CodeSet.code_dot)
         {
@@ -400,14 +388,6 @@ namespace NativeStringCollections.Impl.csFastFloat
             DecimalInfo d = DecimalInfo.parse_decimal(first, last, decimal_separator);
             return ComputeFloat(d);
         }
-
-        // UTF-8/ASCII inputs
-        internal static AdjustedMantissa ParseLongMantissa(byte* first, byte* last, byte decimal_separator)
-        {
-            DecimalInfo d = DecimalInfo.parse_decimal(first, last, decimal_separator);
-            return ComputeFloat(d);
-        }
-
 
         internal static bool TryHandleInvalidInput(Char16* first, Char16* last, out int characters_consumed, out double result)
         {

@@ -25,7 +25,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out bool result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseBurstCompile._tryParseBoolDelegate((Char16*)source.GetUnsafePtr(),
                                                        source.Length,
@@ -43,7 +43,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out int result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseBurstCompile._tryParseInt32Delegate((Char16*)source.GetUnsafePtr(),
                                                         source.Length,
@@ -61,7 +61,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out long result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseBurstCompile._tryParseInt64Delegate((Char16*)source.GetUnsafePtr(),
                                                         source.Length,
@@ -80,7 +80,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out float result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             result = 0.0f;
 
@@ -107,7 +107,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParse<T>(T source, out double result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseBurstCompile._tryParseFloat64Delegate((Char16*)source.GetUnsafePtr(),
                                                           source.Length,
@@ -125,7 +125,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParseHex<T>(T source, out int result, Endian endian = Endian.Little)
-            where T :IParseExt
+            where T :IJaggedArraySliceBase<Char16>
         {
             TryParseBurstCompile._tryParseHex32Delegate((Char16*)source.GetUnsafePtr(),
                                                         source.Length,
@@ -150,7 +150,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParseHex<T>(T source, out long result, Endian endian = Endian.Little)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseBurstCompile._tryParseHex64Delegate((Char16*)source.GetUnsafePtr(),
                                                         source.Length,
@@ -175,7 +175,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParseHex<T>(T source, out float result, Endian endian = Endian.Little)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseBurstCompile._tryParseHex32Delegate((Char16*)source.GetUnsafePtr(),
                                                         source.Length,
@@ -200,7 +200,7 @@ namespace NativeStringCollections
         /// <returns></returns>
         [Obsolete("small delegate of Burst function pointers has no benefit.")]
         public static bool TryParseHex<T>(T source, out double result, Endian endian = Endian.Little)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseBurstCompile._tryParseHex64Delegate((Char16*)source.GetUnsafePtr(),
                                                         source.Length,

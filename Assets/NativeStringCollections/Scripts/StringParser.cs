@@ -22,12 +22,6 @@ namespace NativeStringCollections
         Little,
     }
 
-    public unsafe interface IParseExt
-    {
-        int Length { get; }
-        void* GetUnsafePtr();
-    }
-
     [BurstCompile]
     public static unsafe class StringParserExt
     {
@@ -35,7 +29,7 @@ namespace NativeStringCollections
         /// Try to parse StringEntity to bool. Cannot accept whitespaces (this is differ from official C# bool.TryParse()).
         /// </summary>
         public unsafe static bool TryParse<T>(this T source, out bool result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseBoolImpl((Char16*)source.GetUnsafePtr(), source.Length, out bool success, out result);
             return success;
@@ -44,7 +38,7 @@ namespace NativeStringCollections
         /// Try to parse StringEntity to Int32. Cannot accept whitespaces and hex format (this is differ from official C# int.TryParse()). Use TryParseHex(out T) for hex data.
         /// </summary>
         public unsafe static bool TryParse<T>(this T source, out int result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             //TryParseInt32Impl((Char16*)source.GetUnsafePtr(), source.Length, out bool success, out result);
             //return success;
@@ -54,7 +48,7 @@ namespace NativeStringCollections
         /// Try to parse StringEntity to Int64. Cannot accept whitespaces and hex format (this is differ from official C# long.TryParse()). Use TryParseHex(out T) for hex data.
         /// </summary>
         public unsafe static bool TryParse<T>(this T source, out long result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             //TryParseInt64Impl((Char16*)source.GetUnsafePtr(), source.Length, out bool success, out result);
             //return success;
@@ -65,7 +59,7 @@ namespace NativeStringCollections
         /// Use TryParseHex(out T) for hex data.
         /// </summary>
         public static bool TryParse<T>(this T source, out float result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
 #if DISABLE_CS_FAST_FLOAT
             result = 0.0f;
@@ -88,7 +82,7 @@ namespace NativeStringCollections
         /// Use TryParseHex(out T) for hex data.
         /// </summary>
         public unsafe static bool TryParse<T>(this T source, out double result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
 #if DISABLE_CS_FAST_FLOAT
             TryParseFloat64Impl((Char16*)source.GetUnsafePtr(), source.Length,
@@ -100,7 +94,7 @@ namespace NativeStringCollections
         }
 
         unsafe public static bool TryParseHex<T>(this T source, out int result, Endian endian = Endian.Little)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseHex32Impl((Char16*)source.GetUnsafePtr(), source.Length,
                               out bool success, out uint buf, endian);
@@ -116,7 +110,7 @@ namespace NativeStringCollections
             return success;
         }
         unsafe public static bool TryParseHex<T>(this T source, out long result, Endian endian = Endian.Little)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
              TryParseHex64Impl((Char16*)source.GetUnsafePtr(), source.Length,
                                out bool success, out ulong buf, endian);
@@ -132,7 +126,7 @@ namespace NativeStringCollections
             return success;
         }
         unsafe public static bool TryParseHex<T>(this T source, out float result, Endian endian = Endian.Little)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseHex32Impl((Char16*)source.GetUnsafePtr(), source.Length,
                               out bool success, out uint buf, endian);
@@ -148,7 +142,7 @@ namespace NativeStringCollections
             return success;
         }
         unsafe public static bool TryParseHex<T>(this T source, out double result, Endian endian = Endian.Little)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseHex64Impl((Char16*)source.GetUnsafePtr(), source.Length,
                               out bool success, out ulong buf, endian);
@@ -369,9 +363,6 @@ namespace NativeStringCollections
             if (!TryParseFloatFormat(ptr_source, length,
                                      out int sign, out int i_start, out int dot_pos,
                                      out int exp_pos, out int n_pow))
-            //if (!TryParseFloatFormat_v2(ptr_source, length,
-            //                            out int sign, out int i_start, out int dot_pos,
-            //                            out int exp_pos, out int n_pow))
             {
                 success = false;
                 return;
@@ -533,116 +524,6 @@ namespace NativeStringCollections
 
             return true;
         }
-        private unsafe static bool TryParseFloatFormat_v2(Char16* ptr_source,
-                                                          int length,
-                                                          out int sign,
-                                                          out int i_start,
-                                                          out int dot_pos,
-                                                          out int exp_pos,
-                                                          out int n_pow)
-        {
-            // check sign on front
-            i_start = 0;
-            if (ptr_source[0].IsSign(out sign)) i_start = 1;
-
-            // eat zeros on the head
-            bool is_zero_head = false;
-            for (int i = i_start; i < length; i++)
-            {
-                UInt16 c = ptr_source[i];
-                if (c == UTF16CodeSet.code_0)
-                {
-                    is_zero_head = true;
-                    i_start++;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            // initialize value
-            dot_pos = -1;
-            exp_pos = -1;
-            n_pow = 0;
-
-            if (length > 2048) return false;
-
-            // check dot pos
-            // check exp pos
-            int dummy;
-            bool is_digit_found = false;
-            for (int i= i_start; i<length; i++)
-            {
-                Char16 c = ptr_source[i];
-
-                if(!is_digit_found && c.IsDigit(out dummy))
-                {
-                    is_digit_found = true;
-                }
-                else if (c.IsDot())
-                {
-                    if (dot_pos >= 0) return false;  // # of dots must be 0 or 1 in string.
-                    dot_pos = i;
-                }
-                else if(c.IsExp())
-                {
-                    if (!is_digit_found &&
-                        !is_zero_head) return false;  // must have digits before [E/e] mark.
-                    if (exp_pos > 0) return false;    // # of [E/e] marks must be 0 or 1 in string.
-                    exp_pos = i;
-                }
-            }
-
-            // check exp sign
-            int exp_start = exp_pos + 1;
-            int exp_sign = 1;
-            if(exp_pos > 0)
-            {
-                if (ptr_source[exp_start].IsSign(out exp_sign)) exp_start += 1;
-                if (exp_start == length) return false;  // no digits in exp
-            }
-            else
-            {
-                exp_pos = (short)length;
-                exp_start = exp_pos;
-            }
-
-            // check mantissa region is digits only or not
-            for(int i = i_start; i<exp_pos; i++)
-            {
-                Char16 c = ptr_source[i];
-                if (!c.IsDigit(out dummy) && !c.IsDot()) return false;
-            }
-
-            // check exp region and extract n_pow
-            if (exp_start > 0)
-            {
-                for (int i = 0; i < math.min(length - exp_start, 64); i++) // up to 64 digits for pow
-                {
-                    Char16 c = ptr_source[i + exp_start];
-
-                    if (!c.IsDigit(out int d)) return false;  // exp region must be digits only
-
-                    n_pow = n_pow * 10 + (int)d;
-                    if (n_pow > 350)
-                    {
-                        if (exp_sign > 0)
-                        {
-                            // overflow
-                            return false;
-                        }
-                        break;
-                    }
-                }
-                n_pow *= exp_sign;
-            }
-
-            // parsing manntissa search [i_start, exp_pos] and use dot_pos to calc 10^m in mantissa.
-            if (dot_pos < 0) dot_pos = exp_pos;
-
-            return true;
-        }
 
         internal unsafe static void TryParseHex32Impl(Char16* ptr_source,
                                                       int length,
@@ -767,7 +648,7 @@ namespace NativeStringCollections
         /// Check the value is integral value or not.
         /// </summary>
         public static bool IsIntegral<T>(this T value)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             return value.TryParse(out long dummy);
         }
@@ -775,7 +656,7 @@ namespace NativeStringCollections
         /// Check the value is numeric value or not.
         /// </summary>
         public static bool IsNumeric<T>(this T value)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             return value.TryParse(out double dummy);
         }
@@ -783,7 +664,7 @@ namespace NativeStringCollections
         /// Check the value is 32bit hex data or not.
         /// </summary>
         public static bool IsHex32<T>(this T value)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseHex32Impl((Char16*)value.GetUnsafePtr(), value.Length,
                               out bool success, out uint buf, Endian.Little);
@@ -793,7 +674,7 @@ namespace NativeStringCollections
         /// Check the value is 64bit hex data or not.
         /// </summary>
         public static bool IsHex64<T>(this T value)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             TryParseHex64Impl((Char16*)value.GetUnsafePtr(), value.Length,
                               out bool success, out ulong buf, Endian.Little);

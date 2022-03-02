@@ -24,7 +24,6 @@ namespace NativeStringCollections
     //        MS .NET framework 4.8.04084
 
     public unsafe readonly struct StringEntity :
-        IParseExt,
         IJaggedArraySliceBase<Char16>,
         ISlice<StringEntity>,
         IEnumerable<Char16>,
@@ -346,7 +345,6 @@ namespace NativeStringCollections
     }
 
     public readonly unsafe struct ReadOnlyStringEntity :
-        IParseExt,
         IJaggedArraySliceBase<Char16>,
         ISlice<ReadOnlyStringEntity>,
         IEnumerable<Char16>,

@@ -12,7 +12,7 @@ namespace NativeStringCollections.Impl
     internal static class FastIntegerParser
     {
         internal static unsafe bool TryParse<T>(T source, out int result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             const int max_digits_len = 10;
 
@@ -83,7 +83,7 @@ namespace NativeStringCollections.Impl
         
         // modified version for Int64
         internal static unsafe bool TryParse<T>(T source, out long result)
-            where T : IParseExt
+            where T : IJaggedArraySliceBase<Char16>
         {
             const int max_digits_len = 19;
 

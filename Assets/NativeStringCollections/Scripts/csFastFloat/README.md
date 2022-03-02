@@ -18,6 +18,9 @@ this is modified library of csFastFloat for NativeStringCollections.StringEntity
   - Delete compatibility of `System.Globalization.NumberStyles` .  
       The `NumberStyles` is an enum, however, the API `NumberStyles.HasFlag()` was implemented as class.
 
+  - Delete ASCII/UTF-8 implementation.  
+    This variant accepts UTF-16 string only.
+
 
 ### ◇ Implement
   - struct `char` -> struct `Char16`

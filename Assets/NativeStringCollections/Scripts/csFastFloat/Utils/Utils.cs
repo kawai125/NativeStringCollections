@@ -17,7 +17,6 @@ namespace NativeStringCollections.Impl.csFastFloat
 
     internal static unsafe class Utils
     {
-#if !HAS_BITOPERATIONS
         private static readonly byte[] Log2DeBruijn = new byte[]
         {
             00, 09, 01, 10, 13, 21, 02, 29,
@@ -25,39 +24,6 @@ namespace NativeStringCollections.Impl.csFastFloat
             08, 12, 20, 28, 15, 17, 24, 07,
             19, 27, 23, 06, 26, 05, 04, 31
         };
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static uint parse_eight_digits_unrolled(ulong val)
-        {
-            const ulong mask = 0x000000FF000000FF;
-            const ulong mul1 = 0x000F424000000064; // 100 + (1000000ULL << 32)
-            const ulong mul2 = 0x0000271000000001; // 1 + (10000ULL << 32)
-            val -= 0x3030303030303030;
-            val = (val * 10) + (val >> 8); // val = (val * 2561) >> 8;
-            val = (((val & mask) * mul1) + (((val >> 16) & mask) * mul2)) >> 32;
-            return (uint)val;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static uint parse_eight_digits_unrolled(byte* chars)
-        {
-            ulong val = Unsafe.ReadUnaligned<ulong>(chars);
-            return parse_eight_digits_unrolled(val);
-        }
-
-
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool is_made_of_eight_digits_fast(byte* chars)
-        {
-            ulong val = Unsafe.ReadUnaligned<ulong>(chars);
-            // We only enable paths depending on this function on little endian
-            // platforms (it happens to be effectively nearly everywhere).
-            // ref : https://lemire.me/blog/tag/swar/
-            return BitConverter.IsLittleEndian && ((val & (val + 0x0606060606060606) & 0xF0F0F0F0F0F0F0F0) == 0x3030303030303030);
-
-        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool is_integer(Char16 c, out uint cMinus0)
@@ -67,16 +33,6 @@ namespace NativeStringCollections.Impl.csFastFloat
             cMinus0 = cc;
             return res;
         }
-        /*
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool is_integer(byte c, out uint cMinus0)
-        {
-            uint cc = (uint)(c - (byte)UTF16CodeSet.code_0);
-            bool res = cc <= UTF16CodeSet.code_9 - UTF16CodeSet.code_0;
-            cMinus0 = cc;
-            return res;
-        }
-        */
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static value128 compute_product_approximation(int bitPrecision, long q, ulong w)
@@ -108,14 +64,6 @@ namespace NativeStringCollections.Impl.csFastFloat
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static value128 FullMultiplication(ulong value1, ulong value2)
         {
-#if HAS_INTRINSICS
-      if(System.Runtime.Intrinsics.X86.Bmi2.X64.IsSupported)
-      {
-            ulong lo;
-            ulong hi = System.Runtime.Intrinsics.X86.Bmi2.X64.MultiplyNoFlags(value1, value2, &lo);
-            return new value128(hi, lo);
-      }
-#endif
             return Emulate64x64to128(value1, value2);
         }
 
@@ -141,35 +89,7 @@ namespace NativeStringCollections.Impl.csFastFloat
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool is_ascii_space(Char16 c)
         {
-            /*
-            // ROS for one byte types can be read directly from metadata avoiding the array allocation.
-            bool[] table = new bool[] {
-            false, false, false, false, false, false, false, false, false, true, true, true, true, true, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, true};
-            // Avoid bound checking.
-            */
             return (c.Value > 32) ? false : _asciiSpaceTable[c.Value];
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool is_space(byte c)
-        {
-            // ROS for one byte types can be read directly from metadata avoiding the array allocation.
-            bool[] table = new bool[] {
-            false, false, false, false, false, false, false, false, false, true, true, true, true, true, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false};
-
-            // Avoid bound checking.
-            return table[c];
         }
 
         internal enum strncasecmpMatch
@@ -245,28 +165,6 @@ namespace NativeStringCollections.Impl.csFastFloat
             return false;
         }
 
-        internal static bool strncasecmp(Char16* input1, Char16* input2, int length)
-        {
-            int running_diff = 0;
-
-            for (int i = 0; i < length; i++)
-            {
-                running_diff |= (input1[i] ^ input2[i]);
-            }
-            return (running_diff == 0) || (running_diff == 32);
-        }
-        internal static bool strncasecmp(byte* input1, byte[] input2, int length)
-        {
-            int running_diff = 0;
-
-            for (int i = 0; i < length; i++)
-            {
-                running_diff |= (input1[i] ^ input2[i]);
-            }
-            return (running_diff == 0) || (running_diff == 32);
-        }
-
-
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int LeadingZeroCount(ulong value)
@@ -299,11 +197,6 @@ namespace NativeStringCollections.Impl.csFastFloat
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float Int32BitsToSingle(int value)
-#if HAS_BITOPERATIONS
-      => BitConverter.Int32BitsToSingle(value);
-#else
-      => *((float*)&value);
-#endif
+        public static float Int32BitsToSingle(int value) => *((float*)&value);
     }
 }
