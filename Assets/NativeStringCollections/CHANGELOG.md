@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.3] - 2022-03-08
+- Add comment and restructure files.
+- Add error check in AsyncTextFileLoader<T> .
+
 ## [1.2.2] - 2022-03-02
 - Removed macros in `csFastFloat` .
 - Removed unused part (ASCII/UTF-8 implementation) of `csFastFloat` .

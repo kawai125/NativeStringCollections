@@ -48,6 +48,13 @@ namespace NativeStringCollections
                     return (JobState == ReadJobState.Completed) || (JobState == ReadJobState.UnLoaded);
                 }
             }
+            public bool IsCompleted
+            {
+                get
+                {
+                    return JobState == ReadJobState.Completed;
+                }
+            }
             public ReadState GetState()
             {
                 return new ReadState(JobState, Length, Read, RefCount, DelayReadAsync, DelayParseText, DelayPostProc);
