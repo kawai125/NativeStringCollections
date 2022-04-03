@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.4] - 2022-04-03
+- Fixed `StringEntity.GetHashCode()` .
+
 ## [1.2.3] - 2022-03-08
 - Add comment and restructure files.
 - Add error check in AsyncTextFileLoader<T> .

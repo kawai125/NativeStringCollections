@@ -134,7 +134,7 @@ namespace NativeStringCollections
             int hash = _len.GetHashCode();
             for(int i=0; i<_len; i++)
             {
-                hash = hash ^ this[i].GetHashCode();
+                hash = HashUtility.Combine(hash, this[i].GetHashCode());
             }
             return hash;
         }
