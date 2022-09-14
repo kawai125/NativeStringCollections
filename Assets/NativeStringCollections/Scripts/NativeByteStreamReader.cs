@@ -55,6 +55,7 @@ namespace NativeStringCollections.Impl
         /// <param name="path"></param>
         public NativeByteStreamReader(Allocator alloc)
         {
+            _path = new GCHandle<string>();
             _info = new PtrHandle<ByteStreamReaderInfo>(alloc);
             _byteBuffer = new NativeArray<byte>(Define.MinBufferSize, alloc);
             _readCommands = new NativeArray<ReadCommand>(1, alloc);

@@ -303,9 +303,19 @@ namespace NativeStringCollections
             }
             return ret;
         }
+        public static implicit operator NativeArray<Char16>(StringEntity str)
+        {
+            return str.AsArray();
+        }
         public NativeArray<Char16> AsArray()
         {
-            var arr = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<Char16>(_ptr, _len, Allocator.None);
+            CheckReallocate();
+
+            var arr = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<Char16>(_ptr, _len, Allocator.Invalid);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref arr, AtomicSafetyHandle.Create());
+#endif
             return arr;
         }
 

@@ -97,6 +97,7 @@ namespace NativeStringCollections
 
                 _lines = new NativeStringList(alloc);
 
+                _decoder = new GCHandle<Decoder>();
                 _data = new GCHandle<Tdata>();
                 _state_ptr = new PtrHandle<ReadStateImpl>();  // do not allocate (this will be assigned). used as reference.
 

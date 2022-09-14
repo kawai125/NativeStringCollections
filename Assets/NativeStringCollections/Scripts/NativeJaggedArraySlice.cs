@@ -180,9 +180,19 @@ namespace NativeStringCollections
             }
             return ret;
         }
+        public static implicit operator NativeArray<T>(NativeJaggedArraySlice<T> slice)
+        {
+            return slice.AsArray();
+        }
         public NativeArray<T> AsArray()
         {
-            var arr = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(_ptr, _len, Allocator.None);
+            CheckReallocate();
+
+            var arr = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(_ptr, _len, Allocator.Invalid);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref arr, AtomicSafetyHandle.Create());
+#endif
             return arr;
         }
 

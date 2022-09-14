@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.6] - 2022-09-14
+- Fixed for Unity 2021 LTS.
+
+## [1.2.5] - 2022-04-06
+- Fixed `StringEntity.AsArray()` and `NativeJaggedArraySlice.AsArray()` .
+
 ## [1.2.4] - 2022-04-03
 - Fixed `StringEntity.GetHashCode()` .
 
@@ -19,7 +25,7 @@
 
 ## [1.2.0] - 2022-03-01
 - Modified `StringEntity.TryParse()` are updated as fast implementations.
-- Changed `Define.DefaultDecodeBlock` is changed.
+- Changed `Define.DefaultDecodeBlock`.
 
 ## [1.1.4] - 2022-03-01
 - Fixed `AsyncTextFileReader<T>.Dispose()`, `AsyncTextFileReader<T>.Complete()` .
